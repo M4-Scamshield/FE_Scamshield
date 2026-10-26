@@ -16,10 +16,12 @@ export function useCall() {
   const [logs, setLogs] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [room, setRoom] = useState("");
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
 
   const cleanup = () => {
     clientRef.current?.hangup();
     clientRef.current = null;
+    setMicStream(null);
   };
 
   const start = useCallback(async ({ room, name }: JoinOptions) => {
@@ -46,6 +48,7 @@ export function useCall() {
 
     try {
       await client.start();
+      setMicStream(client.micStream);
     } catch (e) {
       cleanup();
       setError(`마이크를 켤 수 없음: ${e instanceof Error ? e.message : e} (HTTPS 또는 localhost 필요)`);
@@ -67,5 +70,5 @@ export function useCall() {
   // 페이지를 떠날 때 정리
   useEffect(() => () => cleanup(), []);
 
-  return { status, room, joined, peers, muted, logs, error, start, hangup, toggleMute };
+  return { status, room, joined, peers, muted, micStream, logs, error, start, hangup, toggleMute };
 }

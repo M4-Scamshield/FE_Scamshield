@@ -134,6 +134,11 @@ export class MeshClient {
     this.localStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
   }
 
+  /** 내 마이크 스트림. 분석 업로더가 같은 마이크를 한 번 더 열지 않고 이걸 쓴다 */
+  get micStream(): MediaStream | null {
+    return this.localStream;
+  }
+
   /** 디버깅용: 콘솔에서 __call.connections 로 상대별 연결을 볼 수 있다 */
   get connections(): Record<string, RTCPeerConnection> {
     return Object.fromEntries([...this.peers].map(([id, p]) => [id, p.pc]));
