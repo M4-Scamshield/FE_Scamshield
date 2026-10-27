@@ -110,3 +110,22 @@ summary { padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--mu
 .person[data-tone="ok"] .pstate { color: var(--ok); }
 .person[data-tone="bad"] .pstate { color: var(--bad); }
 
+
+/* ---------- 사기 탐지 패널 ---------- */
+.guard { width: 100%; margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.guard[data-level="SUSPECT"] { border-color: var(--accent); }
+.guard[data-level="WARN"] { border-color: var(--bad); background: var(--bad-soft); }
+.guard-head { display: flex; align-items: center; justify-content: space-between; }
+.guard-title { font-weight: 700; font-size: 15px; }
+.switch { padding: 6px 14px; border-radius: 999px; background: var(--btn); font-size: 13px; font-weight: 600; }
+.switch[aria-checked="true"] { background: var(--accent); color: #fff; }
+.switch:disabled { opacity: 0.6; cursor: default; }
+.guard-tracks { margin: 0; display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+.guard-note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.alert { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 14px; }
+.guard[data-level="WARN"] .alert { background: var(--bad); color: #fff; }
+.alert span { font-size: 12px; font-variant-numeric: tabular-nums; }
+.action p { margin: 0; font-size: 14px; line-height: 1.55; }
+.action form { display: flex; flex-direction: column; margin-top: 10px; }
+.action .primary { margin-top: 8px; padding: 11px; font-size: 14px; }
+.action-msg { margin: 0; font-size: 14px; line-height: 1.55; }

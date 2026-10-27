@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { HangupIcon, LinkIcon, MicIcon, MicOffIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
+import { useAnalysis } from "../../hooks/analysis/useAnalysis";
+import { AnalysisPanel } from "../analysis/AnalysisPanel";
 
 const STATUS_TEXT: Record<CallStatus, string> = {
   idle: "대기",
@@ -27,6 +29,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const maxPeople = joined?.maxParticipants ?? 2;
+  const analysis = useAnalysis(call.micStream, peers);
 
   const copyInvite = async () => {
     const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(call.room)}`;
@@ -69,6 +72,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
       </ul>
 
       {error && <p className="error">{error}</p>}
+
+      <AnalysisPanel analysis={analysis} />
 
       <div className="controls">
         <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"}>
