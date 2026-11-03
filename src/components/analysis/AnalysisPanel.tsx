@@ -47,6 +47,12 @@ export function AnalysisPanel({ analysis }: { analysis: ReturnType<typeof useAna
         </div>
       )}
 
+      {alert?.reason && (
+        <p className="guard-reason" data-testid="analysis-reason">
+          판단 근거: {alert.reason}
+        </p>
+      )}
+
       {alert?.message && alert.message !== action?.message && <p className="action-msg">{alert.message}</p>}
 
       {action && <ActionCard key={action.eventSeq} action={action} onReply={reply} />}

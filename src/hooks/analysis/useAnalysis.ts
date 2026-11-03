@@ -14,7 +14,10 @@ export interface AnalysisAlert {
   eventSeq: number;
   level: "SUSPECT" | "WARN";
   score: number;
+  /** 사용자 안내 (대응 방안) */
   message?: string;
+  /** 왜 의심스러운지 (AI 판단 근거). 의심(WARN)일 때만 온다 */
+  reason?: string;
 }
 
 /** AI 안내. ACQUIRE = 정보를 받아 달라, VERIFY = 받은 정보를 확인 중 */
