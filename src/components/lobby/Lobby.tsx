@@ -29,7 +29,7 @@ export function Lobby({ call, defaults }: { call: ReturnType<typeof useCall>; de
       }}
     >
       <h1>통화 시작하기</h1>
-      <p className="sub">같은 방 이름으로 들어온 상대와 1:1로 연결됩니다.</p>
+      <p className="sub">같은 방 이름으로 들어온 사람들과 최대 4명까지 연결됩니다.</p>
       <label htmlFor="name">내 이름</label>
       <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="참가자" autoComplete="off" maxLength={20} />
       <label htmlFor="room">방 이름</label>

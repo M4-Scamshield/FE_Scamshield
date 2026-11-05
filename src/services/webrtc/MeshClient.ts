@@ -3,7 +3,7 @@
  *
  * - 시그널링: 서버의 /ws/signal 로 받는 사람을 지정해 SDP / ICE 를 주고받는다
  * - 음성: 상대마다 RTCPeerConnection 을 만들어 브라우저끼리 직접 주고받는다
- *   (지금은 1:1 이라 연결 하나. 정원은 서버 설정을 따른다)
+ *   (정원은 서버 설정을 따른다)
  *
  * 누가 offer 를 만들지: 참가자 ID 를 비교해 작은 쪽(impolite)이 처음 offer 를 만든다.
  * 이후 재협상이 겹치면 MDN 의 perfect negotiation 규칙으로 정리한다.
@@ -66,7 +66,7 @@ interface Peer {
 }
 
 const FALLBACK_ICE: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
-const FALLBACK_MAX = 2;
+const FALLBACK_MAX = 4;
 
 export class MeshClient {
   private ws: WebSocket | null = null;
