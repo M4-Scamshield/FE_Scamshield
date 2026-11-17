@@ -1,18 +1,23 @@
 import { useState, type FormEvent } from "react";
 import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
 
-const TRACK_TEXT: Record<string, string> = {
-  connecting: "연결 중",
-  open: "분석 중",
-  retrying: "다시 연결 중",
-  stopped: "꺼짐",
-  rejected: "거절됨",
-};
-
 /** 통화 화면 아래 붙는 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
-export function AnalysisPanel({ analysis }: { analysis: ReturnType<typeof useAnalysis> }) {
-  const { status, error, alert, action, tracks, enable, disable, reply } = analysis;
+/** 분석 서버는 근거 앞에 누구 말 때문인지 "[peer-<id>]" 를 붙인다 → 참가자 이름으로 바꿔 보여 준다 */
+function withName(reason: string, names: Map<string, string>) {
+  return reason.replace(/^\[([^\]]+)\] /, (whole, track: string) => (names.has(track) ? `[${names.get(track)}] ` : whole));
+}
+
+export function AnalysisPanel({
+  analysis,
+  names,
+}: {
+  analysis: ReturnType<typeof useAnalysis>;
+  names: Map<string, string>;
+}) {
+  const { status, error, alert, warnings, action, judged, lines, enable, disable, reply } = analysis;
   const on = status === "on" || status === "starting";
+  // JEV 가 의심했지만 Gemini 가 다시 보고 피싱이 아니라고 함: 경고 없이(OBSERVE) 근거만 있다
+  const falsePositive = judged.action === "OBSERVE" && !!judged.reason;
 
   return (
     <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis">
@@ -30,14 +35,25 @@ export function AnalysisPanel({ analysis }: { analysis: ReturnType<typeof useAna
         </button>
       </div>
 
-      {on && (
-        <p className="guard-tracks">
-          {Object.entries(tracks).map(([id, s]) => (
-            <span key={id}>
-              {id === "me" ? "나" : "상대"} · {TRACK_TEXT[s]}
-            </span>
-          ))}
-        </p>
+      {status === "on" && !alert && (
+        <div className="verdict" data-testid="analysis-verdict">
+          <span className="verdict-label">AI 판단</span>
+          {judged.analyzedTo > 0 && judged.score !== null ? (
+            <>
+              <strong>{falsePositive ? "피싱 아님" : judged.score >= 40 ? "주의" : "정상"}</strong>
+              <span className="verdict-score">위험도 {judged.score}</span>
+            </>
+          ) : (
+            <strong className="verdict-wait">{lines.length > 0 ? "판단 중…" : "대화를 기다리는 중"}</strong>
+          )}
+        </div>
+      )}
+
+      {status === "on" && !alert && falsePositive && (
+        <div className="why" data-kind="recheck" data-testid="analysis-recheck">
+          <p className="why-title">의심 정황이 있었지만 AI가 다시 확인했어요</p>
+          <p className="why-text">{withName(judged.reason ?? "", names)}</p>
+        </div>
       )}
 
       {alert && (
@@ -47,7 +63,29 @@ export function AnalysisPanel({ analysis }: { analysis: ReturnType<typeof useAna
         </div>
       )}
 
-      {alert?.message && alert.message !== action?.message && <p className="action-msg">{alert.message}</p>}
+      {alert && (alert.reason ?? (judged.action === "WARN" ? judged.reason : null)) && (
+        <div className="why" key={alert.eventSeq} data-fresh={warnings.length > 1 || undefined} data-testid="analysis-reason">
+          <p className="why-title">
+            왜 위험한가요 · AI 판단 근거
+            {/* AI 는 통화 전체를 보고 판단한다. 새 발화마다 근거가 최신 대화 기준으로 다시 쓰인다 */}
+            {warnings.length > 1 && <span className="why-meta">최근 판단 기준 · {warnings.length - 1}번 갱신</span>}
+          </p>
+          <p className="why-text">{withName(alert.reason ?? judged.reason ?? "", names)}</p>
+          {(alert.evidenceSeqs?.length ?? 0) > 0 && (
+            <button className="why-link" type="button" onClick={() => showLine(alert.evidenceSeqs![0])}>
+              근거가 된 말 {alert.evidenceSeqs!.length}개 보기
+            </button>
+          )}
+        </div>
+      )}
+
+      {alert?.message && alert.message !== action?.message && (
+        <div className="todo">
+          <p className="why-title">지금 할 일</p>
+          <p className="action-msg">{alert.message}</p>
+        </div>
+      )}
+
 
       {action && <ActionCard key={action.eventSeq} action={action} onReply={reply} />}
 
@@ -55,6 +93,16 @@ export function AnalysisPanel({ analysis }: { analysis: ReturnType<typeof useAna
       {error && <p className="error">{error}</p>}
     </section>
   );
+}
+
+/** 대화 기록에서 그 발화로 스크롤하고 잠깐 깜빡인다 */
+function showLine(seq: number) {
+  const el = document.getElementById(`line-${seq}`);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
 }
 
 function ActionCard({

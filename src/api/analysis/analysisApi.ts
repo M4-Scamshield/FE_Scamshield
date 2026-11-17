@@ -38,3 +38,18 @@ export function audioSocketUrl(call: AnalysisCall, trackId: string, epoch: numbe
   const q = new URLSearchParams({ callId: call.callId, token: call.token, trackId, epoch: String(epoch) });
   return `${proto}://${location.host}/ws/audio?${q}`;
 }
+
+/** AI 판단 진행 상황. analyzed_to = 판단이 끝난 마지막 발화 seq, current_score = 가장 최근 판단의 위험도(0~100) */
+export interface AnalysisState {
+  current_score?: number | null;
+  analyzed_to?: number | null;
+  /** 가장 최근 판단의 action 과 AI 근거. OBSERVE 인데 reason 이 있으면 AI 가 의심을 다시 확인해 오탐으로 본 것 */
+  action?: string | null;
+  reason?: string | null;
+}
+
+export async function getAnalysisState(call: AnalysisCall): Promise<AnalysisState> {
+  const res = await fetch(`/api/analysis/calls/${call.callId}`, { headers: { Authorization: `Bearer ${call.token}` } });
+  if (!res.ok) throw new Error(`상태 조회 실패 (HTTP ${res.status})`);
+  return res.json();
+}
