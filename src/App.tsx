@@ -17,14 +17,14 @@ export default function App() {
   }, [call.logs]);
 
   return (
-    <main>
+    <main data-view={inCall ? "call" : "lobby"}>
       <header>
         <ShieldIcon />
         <span className="brand">ScamShield</span>
         <span className="tag">통화 프로토타입</span>
       </header>
 
-      <section className="card">
+      <section className={inCall ? "stage" : "card"}>
         {inCall ? <CallScreen call={call} /> : <Lobby call={call} defaults={lobbyDefaults} />}
       </section>
 
