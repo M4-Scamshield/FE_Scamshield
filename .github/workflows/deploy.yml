@@ -1,0 +1,51 @@
+# 운영 배포 (https://boostad.site). dev 에 push(= PR 머지)되면 빌드 확인 → app 서버에서 다시 빌드해 dist/ 를 바꾼다.
+# app 서버의 self-hosted 러너(scamshield-app)가 서버의 ~/src/FE_Scamshield 를 fast-forward 하고 빌드한다.
+# caddy 가 ~/src/FE_Scamshield/dist 를 그대로 서빙하므로 재시작은 없다.
+# PR 로는 절대 돌지 않는다(공개 레포라 PR 코드가 운영 서버에서 돌면 안 된다).
+name: Deploy
+
+on:
+  push:
+    branches: [dev]
+    paths-ignore: ["**/*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  app:
+    name: app 서버 (FE 정적 파일)
+    needs: test
+    runs-on: [self-hosted, scamshield-app]
+    timeout-minutes: 15
+    steps:
+      - name: 코드 갱신 · 빌드
+        run: |
+          set -euo pipefail
+          cd ~/src/FE_Scamshield
+          old=$(git rev-parse HEAD)
+          git fetch --quiet origin dev
+          git merge --ff-only --quiet "$GITHUB_SHA"
+          echo "이전 $old → 지금 $(git rev-parse HEAD)"
+          # 서버엔 npm 이 없어 Node 컨테이너로 빌드한다. 다른 폴더에 만든 뒤 한 번에 바꿔 빈 화면 시간을 줄인다
+          rm -rf .dist-next
+          docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/app -w /app node:22-alpine \
+            sh -c "npm ci --no-audit --no-fund && npm run build -- --outDir .dist-next --emptyOutDir"
+          test -f .dist-next/index.html
+          # dist 폴더 자체는 caddy 에 마운트돼 있어 지우거나 바꿔치지 않고 내용만 맞춘다
+          rsync -a --delete .dist-next/ dist/
+          rm -rf .dist-next
+      - name: 열리는지 확인
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://boostad.site/)
+          echo "https://boostad.site/ → $code"
+          [ "$code" = 200 ]

@@ -1,0 +1,25 @@
+# 빌드 확인(타입 검사 + vite build). PR 마다 GitHub 서버에서 돌고, deploy.yml 도 배포 전에 부른다.
+name: CI
+
+on:
+  pull_request:
+    paths-ignore: ["**/*.md"]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "22", cache: npm }   # 운영 서버 빌드와 같은 Node 22
+      - run: npm ci
+      - run: npm run build
