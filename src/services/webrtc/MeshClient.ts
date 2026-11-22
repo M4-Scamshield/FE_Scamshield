@@ -5,6 +5,9 @@
  * - 음성: 상대마다 RTCPeerConnection 을 만들어 브라우저끼리 직접 주고받는다
  *   (정원은 서버 설정을 따른다)
  *
+ * - 영상: 카메라를 켜면 상대마다 영상 트랙을 붙인다(첫 번째는 재협상, 이후 끄고 켜기는 replaceTrack).
+ *   켬/끔은 signal 의 camera 값으로 바로 알린다 — 트랙이 멈췄는지 기다려 판단하면 늦다.
+ *
  * 누가 offer 를 만들지: 참가자 ID 를 비교해 작은 쪽(impolite)이 처음 offer 를 만든다.
  * 이후 재협상이 겹치면 MDN 의 perfect negotiation 규칙으로 정리한다.
  */
@@ -33,6 +36,8 @@ export interface PeerView {
   info: ParticipantInfo;
   state: RTCPeerConnectionState;
   stream: MediaStream | null;
+  /** 상대 카메라 영상. 꺼져 있으면 null */
+  video: MediaStream | null;
 }
 
 export interface JoinedInfo {
@@ -61,6 +66,11 @@ interface Peer {
   /** 이 상대의 SDP/ICE 처리를 순서대로 (상대끼리는 독립) */
   chain: Promise<void>;
   remote: MediaStream | null;
+  /** 상대 영상 트랙 (한 번 받으면 끄고 켜도 같은 트랙이 다시 흐른다) */
+  remoteVideo: MediaStream | null;
+  remoteCamera: boolean;
+  /** 이 상대에게 내 영상을 싣는 sender. 카메라를 처음 켤 때 만든다 */
+  videoSender: RTCRtpSender | null;
   restarts: number;
   restartTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -71,6 +81,7 @@ const FALLBACK_MAX = 4;
 export class MeshClient {
   private ws: WebSocket | null = null;
   private localStream: MediaStream | null = null;
+  private cameraStream: MediaStream | null = null;
   private captureStream: MediaStream | null = null;
   private microphoneContext: AudioContext | null = null;
   private microphoneSource: MediaStreamAudioSourceNode | null = null;
@@ -158,7 +169,43 @@ export class MeshClient {
     this.ws?.close();
     for (const id of [...this.peers.keys()]) this.removePeer(id, false);
     this.releaseMic();
+    this.cameraStream?.getTracks().forEach((t) => t.stop());
+    this.cameraStream = null;
     if (!keepStatus) this.events.onStatus("idle");
+  }
+
+  /** 카메라 켜기·끄기. 켤 때 권한을 묻는다 (거절하면 예외) */
+  async setCamera(on: boolean): Promise<void> {
+    if (on === !!this.cameraStream) return;
+    if (on) {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        // 메시라 상대마다 따로 보낸다 → 4인 통화도 버티게 낮게
+        video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24 } },
+      });
+      if (this.closed) return stream.getTracks().forEach((t) => t.stop());
+      this.cameraStream = stream;
+      for (const peer of this.peers.values()) this.attachCamera(peer);
+      this.log("카메라 켜짐");
+    } else {
+      this.cameraStream?.getTracks().forEach((t) => t.stop());
+      this.cameraStream = null;
+      for (const peer of this.peers.values()) void peer.videoSender?.replaceTrack(null);
+      this.log("카메라 꺼짐");
+    }
+    for (const id of this.peers.keys()) this.send(id, { camera: on });
+  }
+
+  /** 내 카메라 영상 (켜져 있을 때만) */
+  get camera(): MediaStream | null {
+    return this.cameraStream;
+  }
+
+  /** 이 상대에게 지금 카메라 트랙을 싣는다. 처음이면 addTrack(→ 재협상), 아니면 replaceTrack */
+  private attachCamera(peer: Peer): void {
+    const track = this.cameraStream?.getVideoTracks()[0];
+    if (!track) return;
+    if (peer.videoSender) void peer.videoSender.replaceTrack(track);
+    else peer.videoSender = peer.pc.addTrack(track, this.cameraStream!);
   }
 
   setMuted(muted: boolean): void {
@@ -242,21 +289,34 @@ export class MeshClient {
       pendingIce: [],
       chain: Promise.resolve(),
       remote: null,
+      remoteVideo: null,
+      remoteCamera: false,
+      videoSender: null,
       restarts: 0,
       restartTimer: null,
     };
     this.peers.set(info.id, peer);
 
-    // 내 마이크를 이 연결에 싣는다
+    // 내 마이크를 이 연결에 싣는다. 카메라가 켜져 있으면 영상도 싣고, 켜져 있다고 알린다
     this.localStream!.getTracks().forEach((t) => pc.addTrack(t, this.localStream!));
+    if (this.cameraStream) {
+      this.attachCamera(peer);
+      this.send(info.id, { camera: true });
+    }
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) this.send(info.id, { candidate: candidate.toJSON() });
     };
 
     pc.ontrack = ({ track, streams }) => {
-      peer.remote = streams[0] ?? new MediaStream([track]);
-      this.log(`${info.name} 음성 수신`);
+      // 음성과 영상은 서로 다른 스트림으로 온다 → 종류별로 따로 둔다
+      if (track.kind === "video") {
+        peer.remoteVideo = new MediaStream([track]);
+        this.log(`${info.name} 영상 수신`);
+      } else {
+        peer.remote = streams[0] ?? new MediaStream([track]);
+        this.log(`${info.name} 음성 수신`);
+      }
       this.emitPeers();
     };
 
@@ -307,6 +367,12 @@ export class MeshClient {
       .then(async () => {
         const { pc } = peer;
         if (pc.signalingState === "closed") return;
+        if (data.camera !== undefined) {
+          peer.remoteCamera = data.camera;
+          this.log(`${peer.info.name} 카메라 ${data.camera ? "켬" : "끔"}`);
+          this.emitPeers();
+          return;
+        }
         if (data.description) {
           const desc = data.description;
           const ready = !peer.makingOffer && (pc.signalingState === "stable" || peer.settingAnswer);
@@ -350,6 +416,7 @@ export class MeshClient {
       info: p.info,
       state: p.pc.connectionState,
       stream: p.remote,
+      video: p.remoteCamera ? p.remoteVideo : null,
     }));
     this.events.onPeers(list);
     this.events.onStatus(overallStatus(list));

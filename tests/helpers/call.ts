@@ -3,7 +3,16 @@ import { expect, type BrowserContext, type Page, type WebSocketRoute } from "@pl
 // 실제 마이크·운영 서버 없이 합성 음성과 로컬 WebRTC로 통화를 검증한다.
 export async function setup(context: BrowserContext) {
   await context.addInitScript(() => {
-    Object.defineProperty(navigator.mediaDevices, "getUserMedia", { value: async () => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", { value: async (constraints?: MediaStreamConstraints) => {
+      if (constraints?.video) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 640;
+        canvas.height = 360;
+        canvas.getContext("2d")!.fillRect(0, 0, canvas.width, canvas.height);
+        const stream = canvas.captureStream(15);
+        (window as any).__testVideoCapture = stream;
+        return stream;
+      }
       const context = new AudioContext();
       await context.resume();
       const oscillator = context.createOscillator();

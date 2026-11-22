@@ -43,3 +43,26 @@ test("speaking borders follow each participant's audio and stop on silence or mu
   expect(await self.evaluate((element) => getComputedStyle(element, "::after").opacity)).toBe("1");
   await page.screenshot({ path: "test-results/speaking-border.png", fullPage: true });
 });
+
+test("camera toggles preserve the full speaking border over video", async ({ page }) => {
+  await join(page, "나");
+  const self = page.getByTestId("person-participant-1");
+  await page.getByRole("button", { name: "카메라 켜기", exact: true }).click();
+  await expect(self).toHaveAttribute("data-video", "on");
+  await expect(self).toHaveAttribute("data-speaking", "true");
+  await expect(self.locator("video")).toBeVisible();
+  await expect(page.getByRole("button", { name: "카메라 끄기", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const border = await self.evaluate((element) => {
+    const card = element.getBoundingClientRect();
+    const style = getComputedStyle(element, "::after");
+    return { height: parseFloat(style.height), cardHeight: card.height, width: style.borderTopWidth };
+  });
+  expect(border.width).toBe("3px");
+  expect(border.height).toBeGreaterThan(border.cardHeight * 0.9);
+  await page.screenshot({ path: "test-results/speaking-video.png", fullPage: true });
+  await page.getByRole("button", { name: "카메라 끄기", exact: true }).click();
+  await expect(self).not.toHaveAttribute("data-video");
+  await expect(self.locator("video")).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__testVideoCapture.getTracks().every((track: MediaStreamTrack) => track.readyState === "ended"))).toBe(true);
+  await expect(self).toHaveAttribute("data-speaking", "true");
+});

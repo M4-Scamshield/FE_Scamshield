@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
-import { CameraOffIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
+import { CameraIcon, CameraOffIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
@@ -36,7 +36,7 @@ const PEER_STATE_TEXT: Record<RTCPeerConnectionState, string> = {
 type WatchState = "off" | "starting" | "listening" | "degraded" | "SUSPECT" | "WARN";
 
 const WATCH_TEXT: Record<WatchState, string> = {
-  off: "연결 준비",
+  off: "분석 중지",
   starting: "연결 중",
   listening: "분석 중",
   degraded: "연결 끊김",
@@ -64,7 +64,7 @@ function watchState(analysis: ReturnType<typeof useAnalysis>): { state: WatchSta
 }
 
 export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
-  const { status, joined, peers, muted, error, hangup, toggleMute } = call;
+  const { status, joined, peers, muted, camera, error, hangup, toggleMute, toggleCamera } = call;
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -109,7 +109,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     });
   };
   // 전사의 trackId(= 참가자 id) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
-  const names = useRef(new Map<string, string>([["USER", "사용자 입력"]]));
+  const names = useRef(new Map<string, string>([["USER", "내 입력"]]));
   // 상대마다 들어온 순서로 색을 정해서 참가자 목록과 대화 기록에 같이 쓴다
   const colors = useRef(new Map<string, number>());
   if (joined) names.current.set(joined.self.id, `${joined.self.name} (나)`);
@@ -187,6 +187,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
                         onSoundMenu={setSoundMenuTarget}
                         evidencePulse={speakerHighlight?.trackId === joined.self.id ? speakerHighlight.pulse : undefined}
+                        video={camera}
                       />
                     )}
                     {peers.map((p) => (
@@ -200,6 +201,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
                         onSoundMenu={setSoundMenuTarget}
                         evidencePulse={speakerHighlight?.trackId === p.info.id ? speakerHighlight.pulse : undefined}
+                        video={p.video}
                       />
                     ))}
                   </AnimatePresence>
@@ -219,8 +221,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
               {muted ? <MicOffIcon /> : <MicIcon />}
             </button>
             <SoundSettings call={call} />
-            <button className="round camera-control" disabled title="영상 통화는 준비 중이에요" aria-label="카메라 켜기 · 준비 중">
-              <CameraOffIcon />
+            <button className="round camera-control" onClick={toggleCamera} data-active={!!camera} aria-pressed={!!camera} aria-label={camera ? "카메라 끄기" : "카메라 켜기"} title={camera ? "카메라 끄기" : "카메라 켜기"}>
+              {camera ? <CameraIcon /> : <CameraOffIcon />}
             </button>
             <button className="round" onClick={copyInvite} data-active={copied} aria-label="초대 링크 복사" title={copied ? "복사 완료" : "초대 링크 복사"}>
               <LinkIcon /><span className="invite-feedback" role="status">{copied ? "초대 링크가 복사되었습니다" : ""}</span>
@@ -288,6 +290,7 @@ interface ParticipantTileProps {
   soundMenuOpen: boolean;
   onSoundMenu: (target: SoundMenuTarget) => void;
   evidencePulse?: number;
+  video?: MediaStream | null;
 }
 
 // popLayout 이 퇴장할 카드의 위치를 보존할 수 있도록 실제 li 에 ref 를 전달한다.
@@ -303,6 +306,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   soundMenuOpen,
   onSoundMenu,
   evidencePulse,
+  video = null,
 }, ref) {
   const present = useIsPresent();
   const voice = useSpeaking(present && !muted ? stream : null);
@@ -321,6 +325,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       data-speaking={voice.speaking || undefined}
       data-evidence-active={evidencePulse !== undefined || undefined}
       data-testid={`person-${info.id}`}
+      data-video={video ? "on" : undefined}
       aria-hidden={!present || undefined}
       tabIndex={present ? 0 : -1}
       aria-label={`${info.name}${me ? " (나)" : ""} 사운드 설정`}
@@ -346,6 +351,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       }}
       style={{ pointerEvents: present ? undefined : "none", "--voice-level": voice.level } as CSSProperties}
     >
+      {video && <TileVideo stream={video} mirror={me} />}
       {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
       {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
       <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
@@ -356,6 +362,18 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
     </motion.li>
   );
 });
+
+/** 타일을 꽉 채우는 영상. 소리는 PeerAudio 가 내므로 여기선 끈다. 내 화면은 거울처럼 좌우 반전 */
+function TileVideo({ stream, mirror }: { stream: MediaStream; mirror: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream;
+    el.play().catch(() => {});
+  }, [stream]);
+  return <video ref={ref} className="participant-video" data-mirror={mirror || undefined} autoPlay playsInline muted />;
+}
 
 function PeerAudio({ stream, volume, muted }: { stream: MediaStream | null; volume: number; muted: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
