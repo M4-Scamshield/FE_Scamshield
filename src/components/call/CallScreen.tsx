@@ -225,7 +225,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
               <CameraOffIcon />
             </button>
             <button className="round" onClick={copyInvite} data-active={copied} aria-label="초대 링크 복사" title={copied ? "복사 완료" : "초대 링크 복사"}>
-              <LinkIcon />
+              <LinkIcon /><span className="invite-feedback" role="status">{copied ? "초대 링크가 복사되었습니다" : ""}</span>
             </button>
           </div>
           <button className="leave-button" onClick={hangup} aria-label="통화 나가기"><HangupIcon /><span>나가기</span></button>

@@ -88,6 +88,8 @@ main[data-view="call"] .log { max-height: 100px; }
 .controls { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 0; }
 .round { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; width: 44px; height: 44px; padding: 0; flex: none; background: none; color: #bac1ca; }
 .round > svg { width: 44px; height: 44px; padding: 10px; border: 1px solid #3b4048; border-radius: 9px; background: #2c3037; color: #e6eaee; transition: background .15s; }
+.invite-feedback { position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); z-index: 20; width: max-content; max-width: calc(100vw - 24px); padding: 8px 12px; border: 1px solid #43554d; border-radius: 8px; background: #253a31; color: #ddf4e8; box-shadow: 0 4px 16px #0004; font-size: var(--text-small); line-height: 1.5; pointer-events: none; }
+.invite-feedback:empty { display: none; }
 .round:hover:not(:disabled) > svg { background: #424851; }
 .round[data-active="true"] > svg { background: #394b49; color: #e8f4ef; border-color: #8aaba1; }
 .round[data-active="true"]:hover > svg, .sound-menu[open] > summary:hover > svg { background: #415a53; }
@@ -201,6 +203,9 @@ main[data-view="call"] .log { max-height: 100px; }
   .call-layout { --sidebar-width: 400px; }
   .meeting-stage { padding-inline: 5%; }
   .safety-content { padding: 24px; }
+}
+@media (max-width: 1279px) {
+  .invite-feedback { left: auto; right: 0; top: auto; bottom: calc(100% + 10px); transform: none; }
 }
 @media (max-width: 1100px) and (min-width: 801px) {
   .call-layout { --sidebar-width: 320px; }
