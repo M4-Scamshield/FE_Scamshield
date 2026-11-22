@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
 import { CameraOffIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
@@ -9,6 +9,7 @@ import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { LevelTrace } from "./LevelTrace";
 import { BrandLogo } from "../common/BrandLogo";
 import { SoundSettings } from "./SoundSettings";
+import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
 import { DEFAULT_PEER_SOUND } from "../../hooks/call/useSoundSettings";
 import type { UploaderState } from "../../services/analysis/PcmUploader";
 import "./CallScreen.css";
@@ -67,6 +68,15 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [soundMenuTarget, setSoundMenuTarget] = useState<SoundMenuTarget | null>(null);
+  const closeSoundMenu = useCallback(() => setSoundMenuTarget(null), []);
+  const soundMenuIsMe = soundMenuTarget?.participantId === joined?.self.id;
+  const soundMenuPeer = peers.find((peer) => peer.info.id === soundMenuTarget?.participantId);
+  const soundMenuSetting = soundMenuPeer ? call.sound.peerSounds[soundMenuPeer.info.id] ?? DEFAULT_PEER_SOUND : DEFAULT_PEER_SOUND;
+
+  useEffect(() => {
+    if (soundMenuTarget && !soundMenuIsMe && !soundMenuPeer) closeSoundMenu();
+  }, [soundMenuTarget, soundMenuIsMe, soundMenuPeer, closeSoundMenu]);
   const maxPeople = joined?.maxParticipants ?? 4;
   const participantCount = (joined ? 1 : 0) + peers.length;
   const galleryColumns = Math.min(2, Math.max(1, participantCount));
@@ -142,6 +152,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         state={muted ? "음소거" : ""}
                         track={analysis.tracks.me}
                         muted={muted}
+                        soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
+                        onSoundMenu={setSoundMenuTarget}
                       />
                     )}
                     {peers.map((p) => (
@@ -153,6 +165,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         tone={p.state === "connected" ? "ok" : p.state === "failed" ? "bad" : "wait"}
                         color={colors.current.get(`peer-${p.info.id}`)}
                         track={analysis.tracks[`peer-${p.info.id}`]}
+                        soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
+                        onSoundMenu={setSoundMenuTarget}
                       />
                     ))}
                   </AnimatePresence>
@@ -213,6 +227,16 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           />
         </div>
       </aside>
+      {soundMenuTarget && (soundMenuIsMe || soundMenuPeer) && <ParticipantSoundMenu
+        target={soundMenuTarget} onClose={closeSoundMenu}
+        label={soundMenuIsMe ? "내 마이크" : soundMenuPeer!.info.name}
+        value={soundMenuIsMe ? call.sound.microphoneVolume : soundMenuSetting.volume}
+        max={soundMenuIsMe ? 2 : 1}
+        muted={soundMenuIsMe ? muted : soundMenuSetting.muted}
+        microphone={soundMenuIsMe}
+        onChange={soundMenuIsMe ? call.sound.setMicrophoneVolume : (volume) => call.sound.setPeerVolume(soundMenuPeer!.info.id, volume)}
+        onToggleMute={soundMenuIsMe ? toggleMute : () => call.sound.togglePeerMute(soundMenuPeer!.info.id)}
+      />}
     </div>
   );
 }
@@ -226,6 +250,8 @@ interface ParticipantTileProps {
   me?: boolean;
   tone?: string;
   muted?: boolean;
+  soundMenuOpen: boolean;
+  onSoundMenu: (target: SoundMenuTarget) => void;
 }
 
 // popLayout 이 퇴장할 카드의 위치를 보존할 수 있도록 실제 li 에 ref 를 전달한다.
@@ -238,6 +264,8 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   me = false,
   tone = "me",
   muted = false,
+  soundMenuOpen,
+  onSoundMenu,
 }, ref) {
   const present = useIsPresent();
   return (
@@ -253,6 +281,28 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       data-track={track}
       data-testid={`person-${info.id}`}
       aria-hidden={!present || undefined}
+      tabIndex={present ? 0 : -1}
+      aria-label={`${info.name}${me ? " (나)" : ""} 사운드 설정`}
+      aria-haspopup="dialog"
+      aria-expanded={soundMenuOpen}
+      aria-controls={soundMenuOpen ? "participant-sound-menu" : undefined}
+      onContextMenu={(event) => {
+        if (!present) return;
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onSoundMenu({
+          participantId: info.id,
+          x: Number.isFinite(event.clientX) ? event.clientX : bounds.left + bounds.width / 2,
+          y: Number.isFinite(event.clientY) ? event.clientY : bounds.top + bounds.height / 2,
+          trigger: event.currentTarget,
+        });
+      }}
+      onKeyDown={(event) => {
+        if (!present || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onSoundMenu({ participantId: info.id, x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2, trigger: event.currentTarget });
+      }}
       style={{ pointerEvents: present ? undefined : "none" }}
     >
       {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}

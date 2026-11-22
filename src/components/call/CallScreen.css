@@ -53,6 +53,7 @@ main[data-view="call"] .log { max-height: 100px; }
 .person[data-color="1"] { --tile: #38664f; --spk: #bfe6cf; }
 .person[data-color="2"] { --tile: #795448; --spk: #f6d4bf; }
 .person[data-tone="me"] { border-color: #a497c5; }
+.person:focus-visible { outline: 2px solid #83cbaa; outline-offset: 3px; }
 .participant-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .initial { display: grid; place-items: center; width: clamp(56px, 6.5vw, 90px); height: clamp(56px, 6.5vw, 90px); border-radius: 50%; color: #fff; background: rgb(0 0 0 / .23); font-size: clamp(26px, 3vw, 38px); font-weight: 500; }
 .camera-caption { font-size: 10px; color: rgb(255 255 255 / .52); }
@@ -108,6 +109,8 @@ main[data-view="call"] .log { max-height: 100px; }
 .sound-mute svg { width: 16px; height: 16px; }
 .sound-mute[aria-pressed="true"] { color: #ffc4b9; background: #513c38; border-color: #876058; }
 .sound-control[data-muted="true"] output { color: #ffc4b9; }
+.participant-sound-menu { position: fixed; z-index: 30; width: 260px; max-width: calc(100vw - 16px); padding: 16px; border: 1px solid #43515a; border-radius: 10px; background: #20262c; color: #e8edf3; box-shadow: 0 12px 36px #0006; }
+.participant-sound-menu .sound-control { margin: 0; }
 
 /* 독립적으로 스크롤하는 밝은 보호 패널 */
 .safety-sidebar { --safe: #197c65; --caution: #ad660d; --danger: #bf4428; --text: #27383d; --muted: #73838a; --line: #dce4e3; --panel: #fff; --panel-2: #f0f5f3; --bg: #f7f9f8; --spk-me: #756295; --spk-0: #346f82; --spk-1: #417554; --spk-2: #95614e; color-scheme: light; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #f7f9f8; color: var(--text); border-left: 1px solid #dce4e3; }
