@@ -82,6 +82,12 @@ export class MeshClient {
   private ws: WebSocket | null = null;
   private localStream: MediaStream | null = null;
   private cameraStream: MediaStream | null = null;
+  private captureStream: MediaStream | null = null;
+  private microphoneContext: AudioContext | null = null;
+  private microphoneSource: MediaStreamAudioSourceNode | null = null;
+  private microphoneGain: GainNode | null = null;
+  private microphoneVolume = 1;
+  private muted = false;
   private iceServers: RTCIceServer[] = FALLBACK_ICE;
   private maxParticipants = FALLBACK_MAX;
   private selfId = "";
@@ -98,9 +104,34 @@ export class MeshClient {
   async start(): Promise<void> {
     this.events.onStatus("starting");
 
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
+    try {
+      // 사용자 클릭 안에서 컨텍스트를 시작한다. 입력은 스피커로 연결하지 않는다.
+      const context = new AudioContext();
+      this.microphoneContext = context;
+      await context.resume();
+      if (this.closed) return this.releaseMic();
+      const capture = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      if (this.closed) {
+        capture.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.captureStream = capture;
+      this.microphoneSource = context.createMediaStreamSource(capture);
+      const gain = context.createGain();
+      gain.gain.value = this.microphoneVolume;
+      this.microphoneGain = gain;
+      const destination = context.createMediaStreamDestination();
+      destination.channelCount = 1;
+      this.microphoneSource.connect(gain).connect(destination);
+      this.localStream = destination.stream;
+      this.setMuted(this.muted);
+    } catch (error) {
+      this.releaseMic();
+      if (this.closed) return;
+      throw error;
+    }
     this.log("마이크 켜짐");
     if (this.closed) return this.releaseMic();
 
@@ -178,7 +209,17 @@ export class MeshClient {
   }
 
   setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.captureStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
     this.localStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  }
+
+  setMicrophoneVolume(volume: number): void {
+    if (!Number.isFinite(volume)) return;
+    this.microphoneVolume = Math.max(0, Math.min(2, volume));
+    if (this.microphoneGain && this.microphoneContext) {
+      this.microphoneGain.gain.setTargetAtTime(this.microphoneVolume, this.microphoneContext.currentTime, 0.01);
+    }
   }
 
   /** 내 마이크 스트림. 분석 업로더가 같은 마이크를 한 번 더 열지 않고 이걸 쓴다 */
@@ -382,8 +423,16 @@ export class MeshClient {
   }
 
   private releaseMic(): void {
+    this.microphoneSource?.disconnect();
+    this.microphoneGain?.disconnect();
     this.localStream?.getTracks().forEach((t) => t.stop());
+    this.captureStream?.getTracks().forEach((t) => t.stop());
+    void this.microphoneContext?.close().catch(() => {});
     this.localStream = null;
+    this.captureStream = null;
+    this.microphoneContext = null;
+    this.microphoneSource = null;
+    this.microphoneGain = null;
   }
 
   private log(line: string): void {

@@ -13,6 +13,8 @@ export function TranscriptPanel({
   colors,
   evidence,
   analyzedTo,
+  liveTracks,
+  onSelectSpeaker,
 }: {
   selfId: string | undefined;
   active: boolean;
@@ -21,6 +23,8 @@ export function TranscriptPanel({
   colors: Map<string, number>;
   evidence: number[];
   analyzedTo: number;
+  liveTracks: Set<string>;
+  onSelectSpeaker: (trackId: string) => void;
 }) {
   const boxRef = useRef<HTMLOListElement>(null);
   const stickRef = useRef(true);
@@ -44,23 +48,35 @@ export function TranscriptPanel({
         <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석에 연결되면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
       ) : (
         <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite">
-          {lines.map((l) => (
-            <li
-              key={l.eventSeq}
-              id={`line-${l.seq}`}
-              data-speaker={l.kind === "INPUT" ? "input" : l.trackId === selfId ? "me" : "peer"}
-              data-color={l.kind === "INPUT" ? undefined : colors.get(l.trackId)}
-              data-evidence={hot.has(l.seq) || undefined}
-            >
+          {lines.map((l) => {
+            const selectable = hot.has(l.seq) && l.kind === "SPEECH" && liveTracks.has(l.trackId);
+            const speaker = names.get(l.trackId) ?? "참가자";
+            const content = <>
               <span className="speaker">
-                {names.get(l.trackId) ?? "참가자"}
+                {speaker}
                 <span className="judged" data-done={l.seq <= analyzedTo || undefined}>
                   {l.seq <= analyzedTo ? "AI 확인" : "AI 분석 중…"}
                 </span>
               </span>
               <span className="text">{l.text}</span>
-            </li>
-          ))}
+            </>;
+            return (
+              <li
+                key={l.eventSeq}
+                id={`line-${l.seq}`}
+                data-speaker={l.kind === "INPUT" ? "input" : l.trackId === selfId ? "me" : "peer"}
+                data-color={l.kind === "INPUT" ? undefined : colors.get(l.trackId)}
+                data-evidence={hot.has(l.seq) || undefined}
+                data-interactive={selectable || undefined}
+              >
+                {selectable ? <button
+                  type="button" className="transcript-evidence"
+                  aria-label={`${speaker}의 탐지된 발화: ${l.text}`}
+                  onClick={() => onSelectSpeaker(l.trackId)}
+                >{content}</button> : content}
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>

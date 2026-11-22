@@ -1,6 +1,6 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
-import { CameraIcon, CameraOffIcon, CloseIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
+import { CameraIcon, CameraOffIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
@@ -8,6 +8,9 @@ import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { LevelTrace } from "./LevelTrace";
 import { BrandLogo } from "../common/BrandLogo";
+import { SoundSettings } from "./SoundSettings";
+import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
+import { DEFAULT_PEER_SOUND } from "../../hooks/call/useSoundSettings";
 import type { UploaderState } from "../../services/analysis/PcmUploader";
 import "./CallScreen.css";
 
@@ -65,7 +68,16 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
-  const panelToggleRef = useRef<HTMLButtonElement>(null);
+  const [speakerHighlight, setSpeakerHighlight] = useState<{ trackId: string; pulse: number } | null>(null);
+  const [soundMenuTarget, setSoundMenuTarget] = useState<SoundMenuTarget | null>(null);
+  const closeSoundMenu = useCallback(() => setSoundMenuTarget(null), []);
+  const soundMenuIsMe = soundMenuTarget?.participantId === joined?.self.id;
+  const soundMenuPeer = peers.find((peer) => peer.info.id === soundMenuTarget?.participantId);
+  const soundMenuSetting = soundMenuPeer ? call.sound.peerSounds[soundMenuPeer.info.id] ?? DEFAULT_PEER_SOUND : DEFAULT_PEER_SOUND;
+
+  useEffect(() => {
+    if (soundMenuTarget && !soundMenuIsMe && !soundMenuPeer) closeSoundMenu();
+  }, [soundMenuTarget, soundMenuIsMe, soundMenuPeer, closeSoundMenu]);
   const maxPeople = joined?.maxParticipants ?? 4;
   const participantCount = (joined ? 1 : 0) + peers.length;
   const galleryColumns = Math.min(2, Math.max(1, participantCount));
@@ -74,6 +86,28 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     "--gallery-rows": Math.max(1, Math.ceil(participantCount / galleryColumns)),
   } as CSSProperties;
   const analysis = useAnalysis(call.micStream, joined);
+  // 전사의 trackId = 참가자 id. 지금 방에 있는 사람만 타일 강조 대상
+  const liveTracks = new Set([...(joined ? [joined.self.id] : []), ...peers.map((peer) => peer.info.id)]);
+  const highlightedSpeakerIsLive = speakerHighlight !== null && liveTracks.has(speakerHighlight.trackId);
+
+  useEffect(() => {
+    if (!speakerHighlight) return;
+    if (analysis.status !== "on" || !highlightedSpeakerIsLive) {
+      setSpeakerHighlight(null);
+      return;
+    }
+    const timer = setTimeout(() => setSpeakerHighlight(null), 2400);
+    return () => clearTimeout(timer);
+  }, [speakerHighlight, analysis.status, highlightedSpeakerIsLive]);
+
+  const highlightSpeaker = (trackId: string) => {
+    if (!liveTracks.has(trackId) || analysis.status !== "on") return;
+    setSpeakerHighlight((previous) => ({ trackId, pulse: (previous?.pulse ?? 0) + 1 }));
+    document.getElementById(`participant-${trackId}`)?.scrollIntoView({
+      block: "nearest", inline: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    });
+  };
   // 전사의 trackId(= 참가자 id) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
   const names = useRef(new Map<string, string>([["USER", "사용자 입력"]]));
   // 상대마다 들어온 순서로 색을 정해서 참가자 목록과 대화 기록에 같이 쓴다
@@ -84,6 +118,12 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     if (!colors.current.has(p.info.id)) colors.current.set(p.info.id, colors.current.size % 3);
   }
   const watch = watchState(analysis);
+  const collapsedProtectionText = watch.state === "listening" ? "ScamShield 보호 중"
+    : watch.state === "WARN" ? "ScamShield 위험 감지"
+    : watch.state === "SUSPECT" ? "ScamShield 주의 감지"
+    : watch.state === "degraded" ? "ScamShield 재연결 중"
+    : "ScamShield 연결 중";
+  const showCollapsedProtection = !panelOpen && (analysis.status === "on" || analysis.status === "starting");
 
   const copyInvite = async () => {
     const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(call.room)}`;
@@ -99,21 +139,25 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   return (
     <div className="call-layout" data-watch={watch.state} data-panel-open={panelOpen}>
       <section className="meeting" aria-label="통화 공간">
-        <div className="meeting-head">
+        <div className="meeting-head" data-protection-visible={showCollapsedProtection || undefined}>
           <div className="meeting-room">
-            <span className="meeting-logo"><BrandLogo /></span>
-            <div>
-              <p className="meeting-eyebrow">SCAMSHIELD MEETING</p>
-              <h1 className="room" title={call.room}>{call.room}</h1>
-            </div>
+            <span className="room-label" aria-hidden>회의룸</span>
+            <h1 className="room" title={call.room} aria-label={`회의룸: ${call.room}`}>{call.room}</h1>
           </div>
+          {showCollapsedProtection && <button
+            type="button" className="protection-indicator" data-state={watch.state}
+            data-testid="header-protection" aria-controls="call-safety-panel"
+            aria-label={`${collapsedProtectionText} · 보호 패널 열기`}
+            onClick={() => setPanelOpen(true)}
+          >
+            <ShieldIcon /><span role="status">{collapsedProtectionText}</span>
+          </button>}
           <div className="meeting-meta">
             <span className="status" data-status={status} data-testid="status">
               <span className="connection-dot" aria-hidden />{STATUS_TEXT[status]}
             </span>
             {status === "connected" && <span className="timer">{formatTime(seconds)}</span>}
             <button
-              ref={panelToggleRef}
               className="panel-toggle"
               onClick={() => setPanelOpen((open) => !open)}
               aria-expanded={panelOpen}
@@ -141,6 +185,9 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         state={muted ? "음소거" : ""}
                         track={analysis.tracks[joined.self.id]}
                         muted={muted}
+                        soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
+                        onSoundMenu={setSoundMenuTarget}
+                        evidencePulse={speakerHighlight?.trackId === joined.self.id ? speakerHighlight.pulse : undefined}
                         video={camera}
                       />
                     )}
@@ -152,6 +199,9 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         state={PEER_STATE_TEXT[p.state]}
                         tone={p.state === "connected" ? "ok" : p.state === "failed" ? "bad" : "wait"}
                         color={colors.current.get(p.info.id)}
+                        soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
+                        onSoundMenu={setSoundMenuTarget}
+                        evidencePulse={speakerHighlight?.trackId === p.info.id ? speakerHighlight.pulse : undefined}
                         video={p.video}
                       />
                     ))}
@@ -166,15 +216,16 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         </motion.div>
 
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
-          <div className="toolbar-people"><PeopleIcon /><span>참가자 <strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
+          <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
           <div className="controls">
             <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"}>
               {muted ? <MicOffIcon /> : <MicIcon />}
-              <span>{muted ? "음소거 해제" : "음소거"}</span>
+              <span>마이크</span>
             </button>
+            <SoundSettings call={call} />
             <button className="round camera-control" onClick={toggleCamera} aria-pressed={!!camera} aria-label={camera ? "카메라 끄기" : "카메라 켜기"}>
               {camera ? <CameraIcon /> : <CameraOffIcon />}
-              <span>{camera ? "카메라 끄기" : "카메라 켜기"}</span>
+              <span>카메라</span>
             </button>
             <button className="round" onClick={copyInvite} aria-label="초대 링크 복사">
               <LinkIcon /><span aria-live="polite">{copied ? "복사 완료" : "초대하기"}</span>
@@ -183,34 +234,26 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           <button className="leave-button" onClick={hangup} aria-label="통화 나가기"><HangupIcon /><span>나가기</span></button>
         </div>
         {/* 상대마다 소리 내는 요소. 화면에는 안 보인다 */}
-        {peers.map((p) => (
-          <PeerAudio key={p.info.id} stream={p.stream} />
-        ))}
+        {peers.map((p) => {
+          const setting = call.sound.peerSounds[p.info.id] ?? DEFAULT_PEER_SOUND;
+          return <PeerAudio
+            key={p.info.id} stream={p.stream}
+            volume={setting.volume}
+            muted={setting.muted}
+          />;
+        })}
       </section>
 
       <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
         <div className="safety-brand">
-          <div className="safety-brand-main">
-            <button
-              className="panel-close"
-              onClick={() => {
-                setPanelOpen(false);
-                panelToggleRef.current?.focus();
-              }}
-              aria-label="보호 패널 닫기"
-              title="보호 패널 닫기"
-            >
-              <CloseIcon />
-            </button>
-            <span className="safety-brand-name"><BrandLogo />ScamShield</span>
-          </div>
+          <span className="safety-brand-name"><BrandLogo />ScamShield</span>
           <div className="watch-status" role="status" data-testid="watch">
             <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
           </div>
         </div>
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
         <div className="safety-content">
-          <AnalysisPanel analysis={analysis} names={names.current} />
+          <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} />
           <TranscriptPanel
             selfId={joined?.self.id}
             active={analysis.status === "on"}
@@ -219,9 +262,21 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             colors={colors.current}
             evidence={analysis.warnings.flatMap((w) => w.evidenceSeqs ?? [])}
             analyzedTo={analysis.judged.analyzedTo}
+            liveTracks={liveTracks}
+            onSelectSpeaker={highlightSpeaker}
           />
         </div>
       </aside>
+      {soundMenuTarget && (soundMenuIsMe || soundMenuPeer) && <ParticipantSoundMenu
+        target={soundMenuTarget} onClose={closeSoundMenu}
+        label={soundMenuIsMe ? "내 마이크" : soundMenuPeer!.info.name}
+        value={soundMenuIsMe ? call.sound.microphoneVolume : soundMenuSetting.volume}
+        max={soundMenuIsMe ? 2 : 1}
+        muted={soundMenuIsMe ? muted : soundMenuSetting.muted}
+        microphone={soundMenuIsMe}
+        onChange={soundMenuIsMe ? call.sound.setMicrophoneVolume : (volume) => call.sound.setPeerVolume(soundMenuPeer!.info.id, volume)}
+        onToggleMute={soundMenuIsMe ? toggleMute : () => call.sound.togglePeerMute(soundMenuPeer!.info.id)}
+      />}
     </div>
   );
 }
@@ -235,6 +290,9 @@ interface ParticipantTileProps {
   me?: boolean;
   tone?: string;
   muted?: boolean;
+  soundMenuOpen: boolean;
+  onSoundMenu: (target: SoundMenuTarget) => void;
+  evidencePulse?: number;
   video?: MediaStream | null;
 }
 
@@ -248,6 +306,9 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   me = false,
   tone = "me",
   muted = false,
+  soundMenuOpen,
+  onSoundMenu,
+  evidencePulse,
   video = null,
 }, ref) {
   const present = useIsPresent();
@@ -259,19 +320,44 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.18 } }}
       className="person"
+      id={`participant-${info.id}`}
       data-tone={tone}
       data-color={color}
       data-track={track}
+      data-evidence-active={evidencePulse !== undefined || undefined}
       data-testid={`person-${info.id}`}
       data-video={video ? "on" : undefined}
       aria-hidden={!present || undefined}
+      tabIndex={present ? 0 : -1}
+      aria-label={`${info.name}${me ? " (나)" : ""} 사운드 설정`}
+      aria-haspopup="dialog"
+      aria-expanded={soundMenuOpen}
+      aria-controls={soundMenuOpen ? "participant-sound-menu" : undefined}
+      onContextMenu={(event) => {
+        if (!present) return;
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onSoundMenu({
+          participantId: info.id,
+          x: Number.isFinite(event.clientX) ? event.clientX : bounds.left + bounds.width / 2,
+          y: Number.isFinite(event.clientY) ? event.clientY : bounds.top + bounds.height / 2,
+          trigger: event.currentTarget,
+        });
+      }}
+      onKeyDown={(event) => {
+        if (!present || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onSoundMenu({ participantId: info.id, x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2, trigger: event.currentTarget });
+      }}
       style={{ pointerEvents: present ? undefined : "none" }}
     >
       {video && <TileVideo stream={video} mirror={me} />}
+      {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
       {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
       <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
       <motion.div layout="position" className="participant-bottom">
-        <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}{info.name}{me && <span className="me">(나)</span>}</span>
+        <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
         <LevelTrace stream={muted ? null : stream} />
       </motion.div>
       {state && <span className="pstate">{state}</span>}
@@ -291,15 +377,22 @@ function TileVideo({ stream, mirror }: { stream: MediaStream; mirror: boolean })
   return <video ref={ref} className="participant-video" data-mirror={mirror || undefined} autoPlay playsInline muted />;
 }
 
-function PeerAudio({ stream }: { stream: MediaStream | null }) {
+function PeerAudio({ stream, volume, muted }: { stream: MediaStream | null; volume: number; muted: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     const audio = ref.current;
     if (!audio) return;
     audio.srcObject = stream;
     if (stream) audio.play().catch(() => {});
+    return () => {
+      audio.pause();
+      audio.srcObject = null;
+    };
   }, [stream]);
-  return <audio ref={ref} autoPlay />;
+  useEffect(() => {
+    if (ref.current) ref.current.volume = volume;
+  }, [volume]);
+  return <audio ref={ref} autoPlay muted={muted} />;
 }
 
 /** 통화가 연결된 동안 흐른 시간(초) */
