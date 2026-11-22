@@ -6,7 +6,7 @@ import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
-import { LevelTrace } from "./LevelTrace";
+import { useSpeaking } from "../../hooks/call/useSpeaking";
 import { BrandLogo } from "../common/BrandLogo";
 import { SoundSettings } from "./SoundSettings";
 import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
@@ -183,7 +183,6 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         info={joined.self}
                         me
                         stream={call.micStream}
-                        state={muted ? "음소거" : ""}
                         track={analysis.tracks.me}
                         muted={muted}
                         soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
@@ -280,7 +279,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
 
 interface ParticipantTileProps {
   info: ParticipantInfo;
-  state: string;
+  state?: string;
   stream: MediaStream | null;
   track?: UploaderState;
   color?: number;
@@ -307,6 +306,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   evidencePulse,
 }, ref) {
   const present = useIsPresent();
+  const voice = useSpeaking(present && !muted ? stream : null);
   return (
     <motion.li
       ref={ref}
@@ -319,6 +319,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       data-tone={tone}
       data-color={color}
       data-track={track}
+      data-speaking={voice.speaking || undefined}
       data-evidence-active={evidencePulse !== undefined || undefined}
       data-testid={`person-${info.id}`}
       aria-hidden={!present || undefined}
@@ -344,14 +345,13 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
         const bounds = event.currentTarget.getBoundingClientRect();
         onSoundMenu({ participantId: info.id, x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2, trigger: event.currentTarget });
       }}
-      style={{ pointerEvents: present ? undefined : "none" }}
+      style={{ pointerEvents: present ? undefined : "none", "--voice-level": voice.level } as CSSProperties}
     >
       {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
       {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
       <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
       <motion.div layout="position" className="participant-bottom">
         <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
-        <LevelTrace stream={muted ? null : stream} />
       </motion.div>
       {state && <span className="pstate">{state}</span>}
     </motion.li>

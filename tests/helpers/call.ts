@@ -13,6 +13,7 @@ export async function setup(context: BrowserContext) {
       oscillator.connect(level).connect(output);
       oscillator.start();
       (window as any).__testCapture = output.stream;
+      (window as any).__testCaptureGain = level;
       return output.stream;
     } });
   });
