@@ -6,6 +6,7 @@ import type { TranscriptLine } from "../../hooks/analysis/useAnalysis";
  * 경고의 근거가 된 발화(evidence)는 강조한다. 아래쪽을 보고 있을 때만 새 줄을 따라 내려간다.
  */
 export function TranscriptPanel({
+  selfId,
   active,
   lines,
   names,
@@ -15,6 +16,7 @@ export function TranscriptPanel({
   liveTracks,
   onSelectSpeaker,
 }: {
+  selfId: string | undefined;
   active: boolean;
   lines: TranscriptLine[];
   names: Map<string, string>;
@@ -43,7 +45,7 @@ export function TranscriptPanel({
     <section className="transcript" data-testid="transcript">
       <div className="transcript-head"><h2 className="panel-section-title">대화 기록</h2>{lines.length > 0 && <span>{lines.length}개 발화</span>}</div>
       {lines.length === 0 ? (
-        <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석을 시작하면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
+        <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석에 연결되면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
       ) : (
         <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite">
           {lines.map((l) => {
@@ -62,7 +64,7 @@ export function TranscriptPanel({
               <li
                 key={l.eventSeq}
                 id={`line-${l.seq}`}
-                data-speaker={l.kind === "INPUT" ? "input" : l.trackId === "me" ? "me" : "peer"}
+                data-speaker={l.kind === "INPUT" ? "input" : l.trackId === selfId ? "me" : "peer"}
                 data-color={l.kind === "INPUT" ? undefined : colors.get(l.trackId)}
                 data-evidence={hot.has(l.seq) || undefined}
                 data-interactive={selectable || undefined}

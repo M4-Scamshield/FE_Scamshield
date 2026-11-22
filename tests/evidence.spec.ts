@@ -24,17 +24,17 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
+// 분석은 통화에 들어가면 자동으로 켜진다 (토글 없음). trackId = 참가자 id
 async function detect(page: Page) {
-  await page.getByTestId("analysis-toggle").click();
   await expect.poll(() => page.evaluate(() => !!(window as any).__testAnalysisEvents)).toBe(true);
   await page.evaluate(() => {
     const source = (window as any).__testAnalysisEvents;
     const utterances = [
-      { seq: 1, kind: "SPEECH", trackId: "me", text: "계좌를 확인하고 있어요." },
-      { seq: 2, kind: "SPEECH", trackId: "peer-participant-2", text: "지금 안전계좌로 이체하세요." },
-      { seq: 3, kind: "SPEECH", trackId: "peer-participant-3", text: "확인하고 다시 연락드릴게요." },
+      { seq: 1, kind: "SPEECH", trackId: "participant-1", text: "계좌를 확인하고 있어요." },
+      { seq: 2, kind: "SPEECH", trackId: "participant-2", text: "지금 안전계좌로 이체하세요." },
+      { seq: 3, kind: "SPEECH", trackId: "participant-3", text: "확인하고 다시 연락드릴게요." },
       { seq: 4, kind: "INPUT", trackId: "USER", text: "사용자가 입력한 문자" },
-      { seq: 5, kind: "SPEECH", trackId: "peer-not-in-call", text: "이전 참가자의 발화" },
+      { seq: 5, kind: "SPEECH", trackId: "not-in-call", text: "이전 참가자의 발화" },
     ];
     for (const line of utterances) source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({ ...line, eventSeq: line.seq }) }));
     source.dispatchEvent(new MessageEvent("alert", { data: JSON.stringify({
@@ -80,7 +80,7 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   await expect(bystander).not.toHaveAttribute("data-evidence-active");
 });
 
-test("reduced motion uses a static warning and disabling analysis clears the highlight", async ({ page }) => {
+test("reduced motion uses a static warning", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await join(page, "나");
   await detect(page);
@@ -88,19 +88,12 @@ test("reduced motion uses a static warning and disabling analysis clears the hig
   await page.locator("#line-1 button").press("Space");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
   expect(await self.locator(".speaker-warning-highlight").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
-  await page.getByTestId("analysis-toggle").click();
-  await expect(self).not.toHaveAttribute("data-evidence-active");
-  await expect(page.getByTestId("transcript").locator("li")).toHaveCount(0);
 });
 
 test("collapsed protection badge reflects listening, connection loss, and detected danger", async ({ page }) => {
   await join(page, "나");
   const indicator = page.getByTestId("header-protection");
   await expect(page.getByRole("heading", { name: "회의룸: audio-test", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
-  await expect(indicator).toHaveCount(0);
-  await page.getByRole("button", { name: "보호 패널 열기", exact: true }).click();
-  await page.getByTestId("analysis-toggle").click();
   await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-track", "open");
   await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
   await expect(indicator).toHaveText("ScamShield 보호 중");
@@ -127,8 +120,4 @@ test("collapsed protection badge reflects listening, connection loss, and detect
   }) })));
   await expect(indicator).toHaveText("ScamShield 위험 감지");
   await expect(indicator).toHaveAttribute("data-state", "WARN");
-  await indicator.click();
-  await page.getByTestId("analysis-toggle").click();
-  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
-  await expect(indicator).toHaveCount(0);
 });
