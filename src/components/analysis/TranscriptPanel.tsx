@@ -45,7 +45,7 @@ export function TranscriptPanel({
     <section className="transcript" data-testid="transcript">
       <div className="transcript-head"><h2 className="panel-section-title">대화 기록</h2>{lines.length > 0 && <span>{lines.length}개 발화</span>}</div>
       {lines.length === 0 ? (
-        <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석에 연결되면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
+        <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석을 시작하면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
       ) : (
         <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite">
           {lines.map((l) => {

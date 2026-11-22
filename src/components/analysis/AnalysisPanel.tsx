@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
 
-/** 통화 오른쪽 보호 패널: 탐지 상태 · 위험 경고 · AI 안내와 답 입력 (통화 내내 켜져 있다) */
+/** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
 /** AI 는 화자를 참가자 id(p1, p2 …)로 본다 → 근거 속 id 를 참가자 이름으로 바꿔 보여 준다 */
 function withName(reason: string, names: Map<string, string>) {
   return reason.replace(/\[?\b(p\d+)\b\]?/g, (whole, id: string) => names.get(id) ?? whole);
@@ -16,7 +16,7 @@ export function AnalysisPanel({
   names: Map<string, string>;
   onSelectSpeaker: (trackId: string) => void;
 }) {
-  const { status, error, alert, warnings, action, judged, lines, enable, reply } = analysis;
+  const { status, error, alert, warnings, action, judged, lines, enable, disable, reply } = analysis;
   const on = status === "on" || status === "starting";
   // JEV 가 의심했지만 Gemini 가 다시 보고 피싱이 아니라고 함: 경고 없이(OBSERVE) 근거만 있다
   const falsePositive = judged.action === "OBSERVE" && !!judged.reason;
@@ -28,15 +28,17 @@ export function AnalysisPanel({
     <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis">
       <div className="guard-head">
         <span className="guard-title">실시간 보호</span>
-        {status === "error" ? (
-          <button className="switch" onClick={enable} data-testid="analysis-retry">
-            다시 연결
-          </button>
-        ) : (
-          <span className="switch" role="status" aria-label="실시간 보호" data-testid="analysis-status">
-            {status === "on" ? "ON" : "연결 중"}
-          </span>
-        )}
+        <button
+          className="switch"
+          role="switch"
+          aria-label="실시간 보호"
+          aria-checked={on}
+          onClick={on ? disable : enable}
+          disabled={status === "starting"}
+          data-testid="analysis-toggle"
+        >
+          {on ? "ON" : "OFF"}
+        </button>
       </div>
 
       <div className="risk-section">
@@ -98,7 +100,6 @@ export function AnalysisPanel({
 
       {action && <ActionCard key={action.eventSeq} action={action} onReply={reply} />}
 
-      {status === "on" && !error && <p className="guard-note">참가자 모두의 음성이 분석 서버로 전송되고, 결과는 모두에게 똑같이 보여요.</p>}
       {error && <p className="error">{error}</p>}
     </section>
   );

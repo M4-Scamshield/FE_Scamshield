@@ -169,10 +169,14 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
     }
   }, [micStream, joined, startUpload, disable]);
 
-  // 방에 들어와 마이크가 준비되면 바로 켠다. 실패(error)하면 자동으로 다시 시도하지 않는다
+  // 방에 들어와 마이크가 준비되면 통화마다 한 번 자동으로 켠다.
+  // 그 뒤 사용자가 토글로 끄면 꺼진 채로 둔다 (다시 켜는 건 토글). 실패해도 자동으로 다시 시도하지 않는다
+  const autoStartedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (status === "off" && micStream && joined) void enable();
-  }, [status, micStream, joined, enable]);
+    if (!micStream || !joined || autoStartedFor.current === joined.callId) return;
+    autoStartedFor.current = joined.callId;
+    void enable();
+  }, [micStream, joined, enable]);
 
   // 정상 판정은 이벤트가 없으니 켜져 있는 동안 1.5초마다 판단 진행을 읽는다
   useEffect(() => {
