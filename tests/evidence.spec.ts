@@ -24,7 +24,7 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
-// 분석은 통화에 들어가면 자동으로 켜진다 (토글 없음). trackId = 참가자 id
+// 분석은 통화에 들어가면 자동으로 켜진다 (토글로 끌 수 있다). trackId = 참가자 id
 async function detect(page: Page) {
   await expect.poll(() => page.evaluate(() => !!(window as any).__testAnalysisEvents)).toBe(true);
   await page.evaluate(() => {
@@ -80,7 +80,7 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   await expect(bystander).not.toHaveAttribute("data-evidence-active");
 });
 
-test("reduced motion uses a static warning", async ({ page }) => {
+test("reduced motion uses a static warning and disabling analysis clears the highlight", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await join(page, "나");
   await detect(page);
@@ -88,6 +88,14 @@ test("reduced motion uses a static warning", async ({ page }) => {
   await page.locator("#line-1 button").press("Space");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
   expect(await self.locator(".speaker-warning-highlight").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+  await page.getByTestId("analysis-toggle").click();
+  await expect(self).not.toHaveAttribute("data-evidence-active");
+  await expect(page.getByTestId("transcript").locator("li")).toHaveCount(0);
+  // 사용자가 끈 분석은 자동으로 다시 켜지지 않는다 (자동 시작은 통화마다 한 번)
+  await page.waitForTimeout(1000);
+  await expect(page.getByTestId("analysis-toggle")).toHaveAttribute("aria-checked", "false");
+  await page.getByTestId("analysis-toggle").click();
+  await expect(page.getByTestId("analysis-toggle")).toHaveAttribute("aria-checked", "true");
 });
 
 test("collapsed protection badge reflects listening, connection loss, and detected danger", async ({ page }) => {
@@ -120,4 +128,8 @@ test("collapsed protection badge reflects listening, connection loss, and detect
   }) })));
   await expect(indicator).toHaveText("ScamShield 위험 감지");
   await expect(indicator).toHaveAttribute("data-state", "WARN");
+  await indicator.click();
+  await page.getByTestId("analysis-toggle").click();
+  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
+  await expect(indicator).toHaveCount(0);
 });
