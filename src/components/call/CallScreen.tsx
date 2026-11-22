@@ -243,7 +243,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
 
       <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
         <div className="safety-brand">
-          <span className="safety-brand-name"><BrandLogo />ScamShield</span>
+          <span className="safety-brand-name"><BrandLogo /><span className="safety-brand-label"><strong>ScamShield</strong><span>실시간 통화 보호</span></span></span>
           <div className="watch-status" role="status" data-testid="watch">
             <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
           </div>

@@ -198,14 +198,24 @@ test("long analysis keeps conversation visible and evidence navigation preserves
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test("empty conversation guidance is centered before speech and after analysis is disabled", async ({ page }) => {
+test("empty conversation stays centered and protection controls stay fixed when toggled", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await join(page, "나");
   const empty = page.locator(".transcript-empty");
   await expect(empty).toContainText("대화가 시작되면");
+  await expect(page.locator(".guard-message")).toHaveText("통화를 실시간으로 AI가 분석해요");
+  await expect(page.locator(".risk-number")).toBeVisible();
+  const controlBefore = await page.locator(".guard-control").boundingBox();
+  const labelBefore = await page.locator(".guard-label").boundingBox();
   for (const active of [true, false]) {
     if (!active) await page.getByTestId("analysis-toggle").click();
     await expect(empty).toContainText(active ? "대화가 시작되면" : "분석을 시작하면");
+    await expect(page.locator(".risk-number")).toHaveCount(active ? 1 : 0);
+    const control = await page.locator(".guard-control").boundingBox();
+    const label = await page.locator(".guard-label").boundingBox();
+    expect(Math.abs(control!.height - controlBefore!.height)).toBeLessThan(1);
+    expect(Math.abs(label!.y - labelBefore!.y)).toBeLessThan(1);
+    expect(Math.abs(label!.height - labelBefore!.height)).toBeLessThan(1);
     const area = await empty.boundingBox();
     const text = await empty.locator("span").boundingBox();
     expect(Math.abs(text!.x + text!.width / 2 - (area!.x + area!.width / 2))).toBeLessThan(1);
