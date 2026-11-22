@@ -52,6 +52,7 @@ body {
   background-size: 32px 32px;
 }
 main { max-width: 440px; margin: 0 auto; padding: 28px 16px 40px; }
+main[data-view="lobby"] { padding-top: clamp(32px, 12vh, 120px); }
 
 header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .shield { color: var(--safe); width: 20px; height: 20px; }
@@ -68,20 +69,23 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; }
 .error { margin: 0; color: var(--danger); font-size: var(--text-body); line-height: 1.6; }
 
 /* ---------- 입장 화면 ---------- */
+.lobby-brand { margin-bottom: 24px; }
 .lobby { display: flex; flex-direction: column; }
+.lobby .field-note { margin-left: 6px; font-size: var(--text-small); font-weight: var(--weight-regular); }
 h1 { font-size: var(--text-title); font-weight: var(--weight-bold); margin: 0; letter-spacing: -0.02em; line-height: 1.3; }
 .sub { margin: 8px 0 24px; color: var(--muted); font-size: var(--text-body); line-height: 1.6; }
 label { font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--muted); margin-bottom: 6px; }
 input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
 .lobby input + label { margin-top: 16px; }
 .lobby .error { margin-top: 14px; }
+.lobby input { min-height: 52px; }
+.lobby .primary { min-height: 52px; margin-top: 24px; }
 .status.inline { margin-top: 14px; text-align: center; }
 
 /* ---------- 로그 ---------- */
 .logbox { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 summary { padding: 8px 12px; font-size: var(--text-small); color: var(--muted); cursor: pointer; }
 .log { margin: 0; padding: 0 12px 10px; list-style: none; max-height: 160px; overflow-y: auto; font-family: var(--font-sans); font-size: var(--text-small); line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
-.hint { margin: 12px 0 0; color: var(--muted); font-size: var(--text-small); line-height: 1.6; text-align: center; }
 
 
 .status.inline { color: var(--muted); font-size: var(--text-small); }

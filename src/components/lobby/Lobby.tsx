@@ -10,7 +10,7 @@ export interface LobbyDefaults {
 export function readLobbyDefaults(): LobbyDefaults {
   const params = new URLSearchParams(location.search);
   return {
-    room: params.get("room") ?? "demo",
+    room: params.get("room") ?? "M4",
     name: params.get("name") ?? "",
   };
 }
@@ -25,20 +25,20 @@ export function Lobby({ call, defaults }: { call: ReturnType<typeof useCall>; de
       className="lobby"
       onSubmit={(e) => {
         e.preventDefault();
-        call.start({ room: room.trim() || "demo", name: name.trim() || "참가자" });
+        call.start({ room: room.trim() || "M4", name: name.trim() || "참가자" });
       }}
     >
       <h1>통화 시작하기</h1>
-      <p className="sub">같은 방 이름으로 들어온 사람들과 최대 4명까지 연결됩니다.</p>
+      <p className="sub">함께할 사람과 같은 방 이름을 입력하세요.</p>
       <label htmlFor="name">내 이름</label>
       <input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="참가자" autoComplete="off" maxLength={20} />
-      <label htmlFor="room">방 이름</label>
-      <input id="room" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="demo" autoComplete="off" maxLength={64} />
+      <label htmlFor="room">방 이름 <span className="field-note">최대 4명</span></label>
+      <input id="room" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="M4" autoComplete="off" maxLength={64} />
       <button className="primary" type="submit">
         통화 시작
       </button>
       {call.status === "room-full" && (
-        <p className="status inline" data-status={call.status} data-testid="status">
+        <p role="alert" className="status inline" data-status={call.status} data-testid="status">
           방이 가득 찼어요
         </p>
       )}
@@ -47,7 +47,7 @@ export function Lobby({ call, defaults }: { call: ReturnType<typeof useCall>; de
           대기
         </span>
       )}
-      {call.error && <p className="error">{call.error}</p>}
+      {call.error && <p role="alert" className="error">{call.error}</p>}
     </form>
   );
 }
