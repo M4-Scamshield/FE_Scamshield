@@ -41,10 +41,27 @@ ScamShield는 화상 통화 중에 상대가 보이스피싱을 시도하는지 
 
 ```sh
 npm ci
-npm run dev   # http://localhost:5173 — BE(8080, 8081)가 떠 있어야 한다
+npm run dev   # http://localhost:5173
 ```
 
 마이크는 `localhost` 또는 `https` 주소에서만 켜진다.
+
+### 개발용 API 서버 선택
+
+설정이 없으면 API는 `http://localhost:8080`, 분석은 `http://localhost:8081`로 연결한다. 이때는 본인 PC에 두 백엔드 서버가 실행 중이어야 한다.
+
+로컬 백엔드 대신 AWS 서버를 쓰려면 프로젝트 루트에 `.env.local`을 만들고 다음을 넣는다.
+
+```dotenv
+API_PROXY_TARGET=https://boostad.site
+ANALYSIS_PROXY_TARGET=https://boostad.site
+```
+
+`.env.local`은 Git에서 제외되어 다른 작업자의 설정에 영향을 주지 않는다. 로컬 서버를 사용하는 작업자는 `.env.local` 없이 실행하거나 `.env.example`을 복사해서 사용하면 된다. API와 분석 서버를 각각 다른 주소로 설정할 수도 있다.
+
+주소를 변경한 뒤에는 `npm run dev`를 재시작한다. HTTP와 WebSocket이 함께 같은 대상 서버로 연결되며, HTTPS 주소는 WebSocket에서 WSS로 연결한다. 브라우저의 요청 주소가 `localhost:5173`으로 보여도 Vite가 지정한 백엔드로 전달한다.
+
+이 설정은 Vite 개발 서버의 프록시 설정이다. 빌드된 사이트를 배포할 때는 호스팅 서버의 `/api`, `/ws` 라우팅 설정을 사용한다.
 
 ## 함께 보는 곳
 
