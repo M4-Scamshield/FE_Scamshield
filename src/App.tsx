@@ -24,7 +24,6 @@ export default function App() {
         {!inCall && <header className="lobby-brand">
           <BrandLogo />
           <span className="brand">ScamShield</span>
-          <span className="tag">안심 통화</span>
         </header>}
         {inCall ? <CallScreen call={call} /> : <Lobby call={call} defaults={lobbyDefaults} />}
       </section>

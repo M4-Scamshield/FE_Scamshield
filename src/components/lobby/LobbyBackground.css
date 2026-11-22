@@ -4,25 +4,23 @@ main[data-view="lobby"] {
   min-height: 100svh;
 }
 
-/* Match the scenery's blue and mint light without changing the form geometry. */
+/* Quiet, solid surfaces keep the form distinct from the animated scenery. */
 main[data-view="lobby"] > .card {
-  --muted: #9aabc2;
-  --line: #283b55;
-  --safe: #4fe3bc;
-  border-color: transparent;
-  background:
-    linear-gradient(145deg, #142239f5, #0d1726f7 55%, #10212af7) padding-box,
-    linear-gradient(135deg, #608de080, #2a456666 48%, #49c7b357) border-box;
-  box-shadow: inset 0 1px 0 #c7e0ff0a, 0 20px 60px #02081366, 0 0 32px #2867b00d;
-  backdrop-filter: blur(16px);
+  --muted: #9da9ba;
+  --line: #2b3749;
+  --safe: #4bd6ac;
+  border-color: #273345;
+  background: #101a29;
 }
 main[data-view="lobby"] .lobby input {
-  background: #080f1ce6;
-  box-shadow: inset 0 1px 4px #0003;
+  background: #0b1320;
 }
 main[data-view="lobby"] .lobby .primary {
-  background: linear-gradient(110deg, #4fe3b3, #43dfca);
-  box-shadow: inset 0 1px 0 #d1fff34d, 0 4px 18px #24c9aa14;
+  background: var(--safe);
+}
+main[data-view="lobby"] .lobby .primary:hover {
+  background: #60ddb9;
+  filter: none;
 }
 
 /* Fixed, clipped scenery never intercepts input or changes the form layout. */
