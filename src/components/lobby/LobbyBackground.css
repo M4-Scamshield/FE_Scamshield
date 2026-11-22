@@ -184,9 +184,6 @@ main[data-view="lobby"] .lobby .primary:hover {
 }
 @keyframes lobby-star-glow { from { opacity: .3; } to { opacity: .85; } }
 
-/* Hold the scenery still while someone interacts with the form. */
-main[data-view="lobby"]:focus-within .lobby-background * { animation-play-state: paused; }
-
 @media (max-width: 1000px) {
   .background-tile { width: 54px; border-radius: 14px; }
   .phone-tile { left: 6%; top: 22%; }
