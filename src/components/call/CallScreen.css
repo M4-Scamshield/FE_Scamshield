@@ -79,14 +79,15 @@ main[data-view="call"] .log { max-height: 100px; }
 .meeting-caption { flex: none; margin: 18px 0 0; color: #98a3af; font-size: var(--text-small); text-align: center; }
 .meeting-wait { margin: auto; color: #a4aeb9; font-size: var(--text-body); text-align: center; }
 .meeting-notice { flex: none; margin: 14px 0 0; padding: 12px; border-radius: 7px; background: #292321; color: #f0b6a3; font-size: var(--text-body); line-height: 1.6; }
-.meeting-toolbar { flex: none; min-height: 108px; padding: 16px 24px; border-top: 1px solid #292c32; background: #191b20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 12px; }
-.toolbar-people { display: flex; align-items: center; gap: 8px; color: #b6bec8; font-size: var(--text-small); padding-top: 10px; line-height: 1.5; }
+.meeting-toolbar { flex: none; min-height: 72px; padding: 12px 24px; border-top: 1px solid #292c32; background: #191b20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.toolbar-people { display: flex; align-items: center; gap: 8px; color: #b6bec8; font-size: var(--text-small); line-height: 1.5; }
+.toolbar-people > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .toolbar-people svg { width: 18px; height: 18px; }
-.toolbar-people strong { margin-left: 4px; color: #f2f4f7; font-weight: var(--weight-semibold); font-size: var(--text-body); }
+.toolbar-people strong { color: #f2f4f7; font-weight: var(--weight-semibold); font-size: var(--text-body); }
 .capacity { color: #626c79; }
-.controls { display: flex; justify-content: center; align-items: flex-start; gap: 4px; padding: 0; }
-.round { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 0; background: none; color: #bac1ca; font-size: var(--text-small); width: 76px; flex: none; font-weight: var(--weight-medium); line-height: 1.4; text-align: center; }
-.round > svg { width: 52px; height: 44px; padding: 10px 14px; border: 1px solid #3b4048; border-radius: 9px; background: #2c3037; color: #e6eaee; transition: background .15s; }
+.controls { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 0; }
+.round { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; width: 44px; height: 44px; padding: 0; flex: none; background: none; color: #bac1ca; }
+.round > svg { width: 44px; height: 44px; padding: 10px; border: 1px solid #3b4048; border-radius: 9px; background: #2c3037; color: #e6eaee; transition: background .15s; }
 .round:hover:not(:disabled) > svg { background: #424851; }
 .round[data-active="true"] > svg { background: #394b49; color: #e8f4ef; border-color: #8aaba1; }
 .round[data-active="true"]:hover > svg, .sound-menu[open] > summary:hover > svg { background: #415a53; }
@@ -210,10 +211,7 @@ main[data-view="call"] .log { max-height: 100px; }
   .meeting-head[data-protection-visible] .meeting-meta { grid-column: 3; grid-row: 1; justify-content: flex-end; }
   .meeting-meta .panel-toggle { margin-left: auto; }
   .meeting-stage { padding: 12px 18px 22px; }
-  .meeting-toolbar { padding: 16px 18px; grid-template-columns: 1fr auto; }
-  .toolbar-people { grid-column: 1; grid-row: 1; }
-  .leave-button { grid-column: 2; grid-row: 1; }
-  .controls { grid-column: 1 / -1; grid-row: 2; }
+  .meeting-toolbar { padding: 12px 18px; }
   .safety-content { padding: 16px; }
 }
 @media (max-width: 800px) {
@@ -230,7 +228,7 @@ main[data-view="call"] .log { max-height: 100px; }
   .gallery-viewport { flex: none; container-type: normal; }
   .people { width: 100%; }
   .initial { width: 58px; height: 58px; font-size: 27px; }
-  .meeting-toolbar { padding: 16px 18px; }
+  .meeting-toolbar { padding: 12px 18px; }
   .safety-sidebar { border-left: 0; border-top: 1px solid #dce4e3; }
   .safety-content { overflow: visible; }
   .transcript-lines { max-height: 400px; }
@@ -244,7 +242,7 @@ main[data-view="call"] .log { max-height: 100px; }
 }
 @media (max-width: 480px) {
   .sound-menu { position: static; }
-  .meeting-toolbar { position: relative; padding: 16px 12px; gap: 16px 8px; }
+  .meeting-toolbar { position: relative; padding: 12px; gap: 12px 8px; }
   .sound-settings { bottom: calc(100% + 8px); left: 12px; right: 12px; transform: none; width: auto; max-height: 60dvh; }
   .meeting-stage { --gallery-gap: 8px; padding-inline: 12px; }
   .people { --tile-columns: 1; }
@@ -256,12 +254,6 @@ main[data-view="call"] .log { max-height: 100px; }
   .pstate { top: 8px; left: 8px; }
   .person[data-track] .pstate { top: 48px; }
   .toolbar-people { gap: 6px; }
-  .toolbar-people strong { margin-left: 0; }
-}
-@media (max-width: 360px) {
-  .round { width: 72px; }
-  .controls { gap: 0; }
-  .round > span { min-height: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .transcript-lines li.flash { animation: none; }

@@ -218,16 +218,15 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
           <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
           <div className="controls">
-            <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"}>
+            <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"} title={muted ? "음소거 해제" : "음소거"}>
               {muted ? <MicOffIcon /> : <MicIcon />}
-              <span>마이크</span>
             </button>
             <SoundSettings call={call} />
             <button className="round camera-control" disabled title="영상 통화는 준비 중이에요" aria-label="카메라 켜기 · 준비 중">
-              <CameraOffIcon /><span>카메라</span>
+              <CameraOffIcon />
             </button>
-            <button className="round" onClick={copyInvite} aria-label="초대 링크 복사">
-              <LinkIcon /><span aria-live="polite">{copied ? "복사 완료" : "초대하기"}</span>
+            <button className="round" onClick={copyInvite} data-active={copied} aria-label="초대 링크 복사" title={copied ? "복사 완료" : "초대 링크 복사"}>
+              <LinkIcon />
             </button>
           </div>
           <button className="leave-button" onClick={hangup} aria-label="통화 나가기"><HangupIcon /><span>나가기</span></button>

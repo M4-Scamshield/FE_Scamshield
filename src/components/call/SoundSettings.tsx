@@ -24,9 +24,8 @@ export function SoundSettings({ call }: { call: ReturnType<typeof useCall> }) {
         event.currentTarget.querySelector("summary")?.focus();
       }
     }}>
-      <summary className="round" aria-label="사운드 설정">
+      <summary className="round" aria-label="사운드 설정" title="사운드 설정">
         <SpeakerIcon />
-        <span>사운드</span>
       </summary>
       <section className="sound-settings" aria-label="사운드 설정">
         <div className="sound-settings-head"><h2>사운드 설정</h2></div>
