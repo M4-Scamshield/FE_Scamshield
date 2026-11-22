@@ -91,10 +91,6 @@ main[data-view="call"] .log { max-height: 100px; }
 .safety-sidebar { --safe: #197c65; --caution: #ad660d; --danger: #bf4428; --text: #27383d; --muted: #73838a; --line: #dce4e3; --panel: #fff; --panel-2: #f0f5f3; --bg: #f7f9f8; --spk-me: #756295; --spk-0: #346f82; --spk-1: #417554; --spk-2: #95614e; color-scheme: light; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #f7f9f8; color: var(--text); border-left: 1px solid #dce4e3; }
 .safety-sidebar[hidden] { display: none; }
 .safety-brand { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 76px; padding: 24px; border-bottom: 1px solid #e0e6e3; color: #24434b; }
-.safety-brand-main { display: flex; align-items: center; gap: 8px; }
-.panel-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; padding: 5px; border-radius: 4px; background: transparent; color: #8c999b; }
-.panel-close svg { width: 18px; height: 18px; }
-.panel-close:hover { background: #e7edea; color: #315351; }
 .safety-brand-name { display: inline-flex; align-items: center; gap: 7px; font-size: 19px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
 .watch-status { display: flex; align-items: center; gap: 6px; color: var(--watch); white-space: nowrap; }
 .watch-status strong { font-size: 11px; font-weight: 500; }

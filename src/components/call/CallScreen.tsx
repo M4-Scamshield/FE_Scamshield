@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
-import { CameraOffIcon, CloseIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
+import { CameraOffIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
@@ -65,7 +65,6 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
-  const panelToggleRef = useRef<HTMLButtonElement>(null);
   const maxPeople = joined?.maxParticipants ?? 4;
   const participantCount = (joined ? 1 : 0) + peers.length;
   const galleryColumns = Math.min(2, Math.max(1, participantCount));
@@ -114,7 +113,6 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             </span>
             {status === "connected" && <span className="timer">{formatTime(seconds)}</span>}
             <button
-              ref={panelToggleRef}
               className="panel-toggle"
               onClick={() => setPanelOpen((open) => !open)}
               aria-expanded={panelOpen}
@@ -189,20 +187,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
 
       <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
         <div className="safety-brand">
-          <div className="safety-brand-main">
-            <button
-              className="panel-close"
-              onClick={() => {
-                setPanelOpen(false);
-                panelToggleRef.current?.focus();
-              }}
-              aria-label="보호 패널 닫기"
-              title="보호 패널 닫기"
-            >
-              <CloseIcon />
-            </button>
-            <span className="safety-brand-name"><BrandLogo />ScamShield</span>
-          </div>
+          <span className="safety-brand-name"><BrandLogo />ScamShield</span>
           <div className="watch-status" role="status" data-testid="watch">
             <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
           </div>

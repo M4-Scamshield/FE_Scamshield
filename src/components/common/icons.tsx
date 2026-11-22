@@ -66,9 +66,3 @@ export const PanelIcon = () => (
     <path d="M15 4v16M18 8h.01M18 12h.01" />
   </svg>
 );
-
-export const CloseIcon = () => (
-  <svg {...svg}>
-    <path d="m6 6 12 12M18 6 6 18" />
-  </svg>
-);
