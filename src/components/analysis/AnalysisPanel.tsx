@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
+import { ShieldIcon } from "../common/icons";
 
 /** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
 /** AI 는 화자를 참가자 id(p1, p2 …)로 본다 → 근거 속 id 를 참가자 이름으로 바꿔 보여 준다 */
@@ -16,8 +17,11 @@ export function AnalysisPanel({
   names: Map<string, string>;
   onSelectSpeaker: (trackId: string) => void;
 }) {
-  const { status, error, alert, warnings, action, judged, lines, enable, disable, reply } = analysis;
+  const { status, error, alert, warnings, action, judged, lines, tracks, streamDown, enable, disable, reply } = analysis;
   const on = status === "on" || status === "starting";
+  const trackStates = Object.values(tracks);
+  const reconnecting = streamDown || trackStates.some((state) => state === "retrying" || state === "stopped" || state === "rejected");
+  const protectionState = reconnecting ? "reconnecting" : status === "on" && trackStates.includes("open") ? "listening" : "connecting";
   // JEV 가 의심했지만 Gemini 가 다시 보고 피싱이 아니라고 함: 경고 없이(OBSERVE) 근거만 있다
   const falsePositive = judged.action === "OBSERVE" && !!judged.reason;
   const score = alert?.score ?? judged.score;
@@ -26,19 +30,24 @@ export function AnalysisPanel({
 
   return (
     <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis">
-      <div className="guard-head">
-        <span className="guard-title">실시간 보호</span>
-        <button
-          className="switch"
-          role="switch"
-          aria-label="실시간 보호"
-          aria-checked={on}
-          onClick={on ? disable : enable}
-          disabled={status === "starting"}
-          data-testid="analysis-toggle"
-        >
-          {on ? "ON" : "OFF"}
-        </button>
+      <div className="guard-control">
+        <div className="guard-head">
+          <div className="guard-label"><ShieldIcon /><span className="guard-title">실시간 보호</span></div>
+          <button
+            className="switch"
+            role="switch"
+            aria-label="실시간 보호"
+            aria-checked={on}
+            onClick={on ? disable : enable}
+            disabled={status === "starting"}
+            data-testid="analysis-toggle"
+          >
+            {on ? "ON" : "OFF"}
+          </button>
+        </div>
+        <p className="guard-message" data-state={on ? protectionState : "off"} role="status">
+          {!on ? "필요할 때 다시 켤 수 있어요" : protectionState === "listening" ? "통화를 실시간으로 AI가 분석해요" : protectionState === "reconnecting" ? "분석 연결을 다시 확인하고 있어요" : "분석을 준비하고 있어요"}
+        </p>
       </div>
 
       <div className="risk-section">
@@ -48,10 +57,11 @@ export function AnalysisPanel({
             <strong>{!on ? "분석 대기 중" : alert?.level === "WARN" ? "사기 위험 감지" : alert ? "의심 정황 감지" : !measured ? lines.length > 0 ? "위험 신호 분석 중" : "대화 분석 대기 중" : falsePositive ? "재확인 완료 · 피싱 아님" : score >= 40 ? "주의가 필요해요" : "현재 위험도 낮음"}</strong>
             {measured && <span className="risk-number">{score}<small>/ 100</small></span>}
           </div>
-          {measured && <div className="risk-meter" role="meter" aria-label="통화 위험도" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
-            {[0, 1, 2, 3].map((segment) => <span key={segment} data-filled={score > segment * 25 || undefined} />)}
-          </div>}
-          <p>{!on ? <>보호를 활성화하면<br />위험 신호를 감지합니다.</> : !measured ? <>대화가 시작되면<br />위험 신호를 실시간으로 살펴봅니다.</> : "통화 내용을 바탕으로 AI가 판단한 위험도예요."}</p>
+          <div className="risk-meter" role={measured ? "meter" : undefined} aria-hidden={!measured || undefined} aria-label={measured ? "통화 위험도" : undefined} aria-valuemin={measured ? 0 : undefined} aria-valuemax={measured ? 100 : undefined} aria-valuenow={measured ? score : undefined}>
+            {Array.from({ length: 25 }, (_, segment) => <span key={segment} data-filled={measured && score > segment * 4 || undefined} />)}
+          </div>
+          <div className="risk-scale" aria-hidden="true"><span>0</span><span>50</span><span>100</span></div>
+          <p>{!on ? "보호를 켜면 통화 속 위험 신호를 감지합니다." : !measured ? "대화가 시작되면 위험도를 표시합니다." : "통화 내용을 바탕으로 AI가 판단한 위험도예요."}</p>
         </div>
       </div>
 
