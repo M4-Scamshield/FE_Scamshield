@@ -33,7 +33,7 @@ const PEER_STATE_TEXT: Record<RTCPeerConnectionState, string> = {
 type WatchState = "off" | "starting" | "listening" | "degraded" | "SUSPECT" | "WARN";
 
 const WATCH_TEXT: Record<WatchState, string> = {
-  off: "분석 중지",
+  off: "연결 준비",
   starting: "연결 중",
   listening: "분석 중",
   degraded: "연결 끊김",
@@ -73,16 +73,15 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     "--gallery-columns": galleryColumns,
     "--gallery-rows": Math.max(1, Math.ceil(participantCount / galleryColumns)),
   } as CSSProperties;
-  const analysis = useAnalysis(call.micStream, peers);
-  // 전사의 trackId(me, peer-<id>) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
-  const names = useRef(new Map<string, string>([["me", "나"], ["USER", "내 입력"]]));
+  const analysis = useAnalysis(call.micStream, joined);
+  // 전사의 trackId(= 참가자 id) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
+  const names = useRef(new Map<string, string>([["USER", "사용자 입력"]]));
   // 상대마다 들어온 순서로 색을 정해서 참가자 목록과 대화 기록에 같이 쓴다
   const colors = useRef(new Map<string, number>());
-  if (joined) names.current.set("me", `${joined.self.name} (나)`);
+  if (joined) names.current.set(joined.self.id, `${joined.self.name} (나)`);
   for (const p of peers) {
-    const track = `peer-${p.info.id}`;
-    names.current.set(track, p.info.name);
-    if (!colors.current.has(track)) colors.current.set(track, colors.current.size % 3);
+    names.current.set(p.info.id, p.info.name);
+    if (!colors.current.has(p.info.id)) colors.current.set(p.info.id, colors.current.size % 3);
   }
   const watch = watchState(analysis);
 
@@ -140,7 +139,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         me
                         stream={call.micStream}
                         state={muted ? "음소거" : ""}
-                        track={analysis.tracks.me}
+                        track={analysis.tracks[joined.self.id]}
                         muted={muted}
                       />
                     )}
@@ -151,8 +150,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         stream={p.stream}
                         state={PEER_STATE_TEXT[p.state]}
                         tone={p.state === "connected" ? "ok" : p.state === "failed" ? "bad" : "wait"}
-                        color={colors.current.get(`peer-${p.info.id}`)}
-                        track={analysis.tracks[`peer-${p.info.id}`]}
+                        color={colors.current.get(p.info.id)}
                       />
                     ))}
                   </AnimatePresence>
@@ -211,6 +209,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         <div className="safety-content">
           <AnalysisPanel analysis={analysis} names={names.current} />
           <TranscriptPanel
+            selfId={joined?.self.id}
             active={analysis.status === "on"}
             lines={analysis.lines}
             names={names.current}
