@@ -10,9 +10,11 @@ function withName(reason: string, names: Map<string, string>) {
 export function AnalysisPanel({
   analysis,
   names,
+  onSelectSpeaker,
 }: {
   analysis: ReturnType<typeof useAnalysis>;
   names: Map<string, string>;
+  onSelectSpeaker: (trackId: string) => void;
 }) {
   const { status, error, alert, warnings, action, judged, lines, enable, disable, reply } = analysis;
   const on = status === "on" || status === "starting";
@@ -76,7 +78,12 @@ export function AnalysisPanel({
           </p>
           <p className="why-text">{withName(alert.reason ?? judged.reason ?? "", names)}</p>
           {(alert.evidenceSeqs?.length ?? 0) > 0 && (
-            <button className="why-link" type="button" onClick={() => showLine(alert.evidenceSeqs![0])}>
+            <button className="why-link" type="button" onClick={() => {
+              const seq = alert.evidenceSeqs![0];
+              showLine(seq);
+              const line = lines.find((line) => line.seq === seq);
+              if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
+            }}>
               근거가 된 말 {alert.evidenceSeqs!.length}개 보기
             </button>
           )}
@@ -102,7 +109,7 @@ export function AnalysisPanel({
 function showLine(seq: number) {
   const el = document.getElementById(`line-${seq}`);
   if (!el) return;
-  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   el.classList.remove("flash");
   void el.offsetWidth;
   el.classList.add("flash");

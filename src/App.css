@@ -1,4 +1,12 @@
-/* 관제 모니터 콘셉트. 초록·주황·빨강은 상태 전용이고, 화자 색은 상태와 겹치지 않게 고른다 */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 본문 16px, 보조 정보 14px. 제목·강조·레이블·본문의 굵기를 구분한다. */
 :root {
   color-scheme: dark;
   --bg: #07090d;
@@ -15,8 +23,20 @@
   --spk-0: #c7a4ff;
   --spk-1: #f49ac4;
   --spk-2: #6fd6e8;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  font-family: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --font-sans: "Pretendard", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --text-small: .875rem;
+  --text-body: 1rem;
+  --text-heading: 1.125rem;
+  --text-title: 1.5rem;
+  --text-display: 2rem;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: var(--weight-regular);
+  line-height: 1.6;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -33,25 +53,25 @@ body {
 }
 main { max-width: 440px; margin: 0 auto; padding: 28px 16px 40px; }
 
-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .shield { color: var(--safe); width: 20px; height: 20px; }
 .brand-logo { display: block; flex: none; width: 32px; height: 32px; object-fit: contain; }
-.brand { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
-.tag { margin-left: auto; font-size: 11px; color: var(--muted); }
+.brand { font-weight: var(--weight-semibold); font-size: var(--text-heading); letter-spacing: -0.01em; }
+.tag { margin-left: auto; font-size: var(--text-small); color: var(--muted); }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 28px 24px; }
 
 input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--safe); outline-offset: 2px; }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; }
-.primary { margin-top: 16px; padding: 13px; border-radius: 6px; background: var(--safe); color: #04140d; font-size: 15px; font-weight: 700; }
+.primary { margin-top: 16px; padding: 13px; border-radius: 6px; background: var(--safe); color: #04140d; font-size: var(--text-body); font-weight: var(--weight-semibold); }
 .primary:hover { filter: brightness(1.08); }
-.error { margin: 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
+.error { margin: 0; color: var(--danger); font-size: var(--text-body); line-height: 1.6; }
 
 /* ---------- 입장 화면 ---------- */
 .lobby { display: flex; flex-direction: column; }
-h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
-.sub { margin: 6px 0 24px; color: var(--muted); font-size: 14px; line-height: 1.5; }
-label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+h1 { font-size: var(--text-title); font-weight: var(--weight-bold); margin: 0; letter-spacing: -0.02em; line-height: 1.3; }
+.sub { margin: 8px 0 24px; color: var(--muted); font-size: var(--text-body); line-height: 1.6; }
+label { font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--muted); margin-bottom: 6px; }
 input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
 .lobby input + label { margin-top: 16px; }
 .lobby .error { margin-top: 14px; }
@@ -59,10 +79,10 @@ input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius
 
 /* ---------- 로그 ---------- */
 .logbox { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
-summary { padding: 8px 12px; font-size: 12px; color: var(--muted); cursor: pointer; }
-.log { margin: 0; padding: 0 12px 10px; list-style: none; max-height: 160px; overflow-y: auto; font: 11px/1.8 var(--mono); color: var(--muted); }
-.hint { margin: 12px 0 0; color: var(--idle); font-size: 12px; line-height: 1.5; text-align: center; }
+summary { padding: 8px 12px; font-size: var(--text-small); color: var(--muted); cursor: pointer; }
+.log { margin: 0; padding: 0 12px 10px; list-style: none; max-height: 160px; overflow-y: auto; font-family: var(--font-sans); font-size: var(--text-small); line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
+.hint { margin: 12px 0 0; color: var(--muted); font-size: var(--text-small); line-height: 1.6; text-align: center; }
 
 
-.status.inline { color: var(--muted); font-size: 12px; }
+.status.inline { color: var(--muted); font-size: var(--text-small); }
 .status.inline[data-status="room-full"] { color: var(--danger); }
