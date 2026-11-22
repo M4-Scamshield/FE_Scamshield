@@ -60,12 +60,13 @@ export function TranscriptPanel({
         <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite" aria-label="대화 기록" tabIndex={0}>
           {lines.map((l) => {
             const selectable = hot.has(l.seq) && l.kind === "SPEECH" && liveTracks.has(l.trackId);
+            const warning = hot.has(l.seq);
             const speaker = names.get(l.trackId) ?? "참가자";
             const content = <>
               <span className="speaker">
                 <span className="speaker-name">{speaker}</span>
-                <span className="judged" data-done={l.seq <= analyzedTo || undefined}>
-                  {l.seq <= analyzedTo ? "AI 확인" : "AI 분석 중…"}
+                <span className="judged" data-done={l.seq <= analyzedTo || undefined} data-warning={warning || undefined}>
+                  {warning ? <><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m8 2 6 11H2L8 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /><path d="M8 6v3M8 11v.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>위험 신호</> : l.seq <= analyzedTo ? "AI 확인" : "AI 분석 중…"}
                 </span>
               </span>
               <span className="text">{l.text}</span>

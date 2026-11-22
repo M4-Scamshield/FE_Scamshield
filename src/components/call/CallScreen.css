@@ -222,6 +222,8 @@ main[data-view="call"] .log { max-height: 100px; }
 .speaker-name::before { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--spk); }
 .judged { flex: none; color: #99a49c; font-size: .6875rem; font-weight: var(--weight-regular); }
 .judged[data-done] { color: #548674; }
+.judged[data-warning] { display: inline-flex; align-items: center; gap: 4px; color: #ad4d26; font-weight: var(--weight-semibold); }
+.judged[data-warning] svg { width: 13px; height: 13px; }
 .transcript-lines .text { font-size: var(--text-body); line-height: 1.65; font-weight: var(--weight-regular); }
 .transcript-lines li[data-evidence] { border-bottom-color: #e5c9b6; background: #fbf0e5; box-shadow: inset 2px 0 #cc885f; padding-left: 12px; padding-right: 10px; }
 .transcript-lines li[data-evidence] .text { text-decoration: underline; text-decoration-color: #efc0a0; text-decoration-thickness: 4px; text-underline-offset: -2px; text-decoration-skip-ink: none; }
