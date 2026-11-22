@@ -250,7 +250,9 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         </div>
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
         <div className="safety-content">
-          <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} />
+          <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
+            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} />
+          </div>
           <TranscriptPanel
             selfId={joined?.self.id}
             active={analysis.status === "on"}

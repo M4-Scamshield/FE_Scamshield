@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { TranscriptLine } from "../../hooks/analysis/useAnalysis";
 
 /**
@@ -29,7 +29,7 @@ export function TranscriptPanel({
   const boxRef = useRef<HTMLOListElement>(null);
   const stickRef = useRef(true);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const box = boxRef.current;
     if (box && stickRef.current) box.scrollTop = box.scrollHeight;
   }, [lines.length]);
@@ -45,9 +45,9 @@ export function TranscriptPanel({
     <section className="transcript" data-testid="transcript">
       <div className="transcript-head"><h2 className="panel-section-title">대화 기록</h2>{lines.length > 0 && <span>{lines.length}개 발화</span>}</div>
       {lines.length === 0 ? (
-        <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석을 시작하면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
+        <p className="transcript-empty"><span>{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석을 시작하면 대화 내용이<br />실시간으로 표시됩니다.</>}</span></p>
       ) : (
-        <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite">
+        <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite" aria-label="대화 기록" tabIndex={0}>
           {lines.map((l) => {
             const selectable = hot.has(l.seq) && l.kind === "SPEECH" && liveTracks.has(l.trackId);
             const speaker = names.get(l.trackId) ?? "참가자";
