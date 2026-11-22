@@ -66,3 +66,16 @@ export const PanelIcon = () => (
     <path d="M15 4v16M18 8h.01M18 12h.01" />
   </svg>
 );
+
+export const SpeakerIcon = () => (
+  <svg {...svg}>
+    <path d="m11 5-6 4H2v6h3l6 4V5Z" />
+    <path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" />
+  </svg>
+);
+
+export const SpeakerOffIcon = () => (
+  <svg {...svg}>
+    <path d="m11 5-6 4H2v6h3l6 4V5ZM16 9l6 6M22 9l-6 6" />
+  </svg>
+);

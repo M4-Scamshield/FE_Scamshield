@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MeshClient, type CallStatus, type JoinedInfo, type PeerView } from "../../services/webrtc/MeshClient";
+import { useSoundSettings } from "./useSoundSettings";
 
 export interface JoinOptions {
   room: string;
@@ -17,6 +18,13 @@ export function useCall() {
   const [error, setError] = useState<string | null>(null);
   const [room, setRoom] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const sound = useSoundSettings(peers);
+  const microphoneVolumeRef = useRef(sound.microphoneVolume);
+  microphoneVolumeRef.current = sound.microphoneVolume;
+
+  useEffect(() => {
+    clientRef.current?.setMicrophoneVolume(sound.microphoneVolume);
+  }, [sound.microphoneVolume]);
 
   const cleanup = () => {
     clientRef.current?.hangup();
@@ -43,13 +51,15 @@ export function useCall() {
       onJoined: setJoined,
     });
     clientRef.current = client;
+    client.setMicrophoneVolume(microphoneVolumeRef.current);
     // 디버깅용: 콘솔에서 __call.connections 로 확인
     (window as unknown as { __call?: MeshClient }).__call = client;
 
     try {
       await client.start();
-      setMicStream(client.micStream);
+      if (clientRef.current === client) setMicStream(client.micStream);
     } catch (e) {
+      if (clientRef.current !== client) return;
       cleanup();
       setError(`마이크를 켤 수 없음: ${e instanceof Error ? e.message : e} (HTTPS 또는 localhost 필요)`);
     }
@@ -70,5 +80,5 @@ export function useCall() {
   // 페이지를 떠날 때 정리
   useEffect(() => () => cleanup(), []);
 
-  return { status, room, joined, peers, muted, micStream, logs, error, start, hangup, toggleMute };
+  return { status, room, joined, peers, muted, micStream, logs, error, sound, start, hangup, toggleMute };
 }

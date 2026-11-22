@@ -8,6 +8,8 @@ import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { LevelTrace } from "./LevelTrace";
 import { BrandLogo } from "../common/BrandLogo";
+import { SoundSettings } from "./SoundSettings";
+import { DEFAULT_PEER_SOUND } from "../../hooks/call/useSoundSettings";
 import type { UploaderState } from "../../services/analysis/PcmUploader";
 import "./CallScreen.css";
 
@@ -170,6 +172,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
               {muted ? <MicOffIcon /> : <MicIcon />}
               <span>{muted ? "음소거 해제" : "음소거"}</span>
             </button>
+            <SoundSettings call={call} />
             <button className="round camera-control" disabled title="영상 통화는 준비 중이에요" aria-label="카메라 켜기 · 준비 중">
               <CameraOffIcon /><span>카메라 <small>준비 중</small></span>
             </button>
@@ -180,9 +183,14 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           <button className="leave-button" onClick={hangup} aria-label="통화 나가기"><HangupIcon /><span>나가기</span></button>
         </div>
         {/* 상대마다 소리 내는 요소. 화면에는 안 보인다 */}
-        {peers.map((p) => (
-          <PeerAudio key={p.info.id} stream={p.stream} />
-        ))}
+        {peers.map((p) => {
+          const setting = call.sound.peerSounds[p.info.id] ?? DEFAULT_PEER_SOUND;
+          return <PeerAudio
+            key={p.info.id} stream={p.stream}
+            volume={setting.volume}
+            muted={setting.muted}
+          />;
+        })}
       </section>
 
       <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
@@ -258,15 +266,22 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   );
 });
 
-function PeerAudio({ stream }: { stream: MediaStream | null }) {
+function PeerAudio({ stream, volume, muted }: { stream: MediaStream | null; volume: number; muted: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
   useEffect(() => {
     const audio = ref.current;
     if (!audio) return;
     audio.srcObject = stream;
     if (stream) audio.play().catch(() => {});
+    return () => {
+      audio.pause();
+      audio.srcObject = null;
+    };
   }, [stream]);
-  return <audio ref={ref} autoPlay />;
+  useEffect(() => {
+    if (ref.current) ref.current.volume = volume;
+  }, [volume]);
+  return <audio ref={ref} autoPlay muted={muted} />;
 }
 
 /** 통화가 연결된 동안 흐른 시간(초) */
