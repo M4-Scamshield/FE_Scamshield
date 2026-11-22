@@ -68,6 +68,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [speakerHighlight, setSpeakerHighlight] = useState<{ trackId: string; pulse: number } | null>(null);
   const [soundMenuTarget, setSoundMenuTarget] = useState<SoundMenuTarget | null>(null);
   const closeSoundMenu = useCallback(() => setSoundMenuTarget(null), []);
   const soundMenuIsMe = soundMenuTarget?.participantId === joined?.self.id;
@@ -85,6 +86,28 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     "--gallery-rows": Math.max(1, Math.ceil(participantCount / galleryColumns)),
   } as CSSProperties;
   const analysis = useAnalysis(call.micStream, peers);
+  const liveTracks = new Set([...(joined ? ["me"] : []), ...peers.map((peer) => `peer-${peer.info.id}`)]);
+  const highlightedSpeakerIsLive = speakerHighlight !== null && liveTracks.has(speakerHighlight.trackId);
+
+  useEffect(() => {
+    if (!speakerHighlight) return;
+    if (analysis.status !== "on" || !highlightedSpeakerIsLive) {
+      setSpeakerHighlight(null);
+      return;
+    }
+    const timer = setTimeout(() => setSpeakerHighlight(null), 2400);
+    return () => clearTimeout(timer);
+  }, [speakerHighlight, analysis.status, highlightedSpeakerIsLive]);
+
+  const highlightSpeaker = (trackId: string) => {
+    const participantId = trackId === "me" ? joined?.self.id : peers.find((peer) => `peer-${peer.info.id}` === trackId)?.info.id;
+    if (!participantId || analysis.status !== "on") return;
+    setSpeakerHighlight((previous) => ({ trackId, pulse: (previous?.pulse ?? 0) + 1 }));
+    document.getElementById(`participant-${participantId}`)?.scrollIntoView({
+      block: "nearest", inline: "nearest",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    });
+  };
   // 전사의 trackId(me, peer-<id>) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
   const names = useRef(new Map<string, string>([["me", "나"], ["USER", "내 입력"]]));
   // 상대마다 들어온 순서로 색을 정해서 참가자 목록과 대화 기록에 같이 쓴다
@@ -154,6 +177,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         muted={muted}
                         soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
                         onSoundMenu={setSoundMenuTarget}
+                        evidencePulse={speakerHighlight?.trackId === "me" ? speakerHighlight.pulse : undefined}
                       />
                     )}
                     {peers.map((p) => (
@@ -167,6 +191,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         track={analysis.tracks[`peer-${p.info.id}`]}
                         soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
                         onSoundMenu={setSoundMenuTarget}
+                        evidencePulse={speakerHighlight?.trackId === `peer-${p.info.id}` ? speakerHighlight.pulse : undefined}
                       />
                     ))}
                   </AnimatePresence>
@@ -216,7 +241,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         </div>
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
         <div className="safety-content">
-          <AnalysisPanel analysis={analysis} names={names.current} />
+          <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} />
           <TranscriptPanel
             active={analysis.status === "on"}
             lines={analysis.lines}
@@ -224,6 +249,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             colors={colors.current}
             evidence={analysis.warnings.flatMap((w) => w.evidenceSeqs ?? [])}
             analyzedTo={analysis.judged.analyzedTo}
+            liveTracks={liveTracks}
+            onSelectSpeaker={highlightSpeaker}
           />
         </div>
       </aside>
@@ -252,6 +279,7 @@ interface ParticipantTileProps {
   muted?: boolean;
   soundMenuOpen: boolean;
   onSoundMenu: (target: SoundMenuTarget) => void;
+  evidencePulse?: number;
 }
 
 // popLayout 이 퇴장할 카드의 위치를 보존할 수 있도록 실제 li 에 ref 를 전달한다.
@@ -266,6 +294,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   muted = false,
   soundMenuOpen,
   onSoundMenu,
+  evidencePulse,
 }, ref) {
   const present = useIsPresent();
   return (
@@ -276,9 +305,11 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.18 } }}
       className="person"
+      id={`participant-${info.id}`}
       data-tone={tone}
       data-color={color}
       data-track={track}
+      data-evidence-active={evidencePulse !== undefined || undefined}
       data-testid={`person-${info.id}`}
       aria-hidden={!present || undefined}
       tabIndex={present ? 0 : -1}
@@ -305,6 +336,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       }}
       style={{ pointerEvents: present ? undefined : "none" }}
     >
+      {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
       {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
       <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
       <motion.div layout="position" className="participant-bottom">
