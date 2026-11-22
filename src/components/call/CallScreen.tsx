@@ -136,11 +136,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
       <section className="meeting" aria-label="통화 공간">
         <div className="meeting-head">
           <div className="meeting-room">
-            <span className="meeting-logo"><BrandLogo /></span>
-            <div>
-              <p className="meeting-eyebrow">SCAMSHIELD MEETING</p>
-              <h1 className="room" title={call.room}>{call.room}</h1>
-            </div>
+            <span className="room-label" aria-hidden>회의룸</span>
+            <h1 className="room" title={call.room} aria-label={`회의룸: ${call.room}`}>{call.room}</h1>
           </div>
           <div className="meeting-meta">
             <span className="status" data-status={status} data-testid="status">
@@ -205,15 +202,15 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         </motion.div>
 
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
-          <div className="toolbar-people"><PeopleIcon /><span>참가자 <strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
+          <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
           <div className="controls">
             <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"}>
               {muted ? <MicOffIcon /> : <MicIcon />}
-              <span>{muted ? "음소거 해제" : "음소거"}</span>
+              <span>마이크</span>
             </button>
             <SoundSettings call={call} />
             <button className="round camera-control" disabled title="영상 통화는 준비 중이에요" aria-label="카메라 켜기 · 준비 중">
-              <CameraOffIcon /><span>카메라 <small>준비 중</small></span>
+              <CameraOffIcon /><span>카메라</span>
             </button>
             <button className="round" onClick={copyInvite} aria-label="초대 링크 복사">
               <LinkIcon /><span aria-live="polite">{copied ? "복사 완료" : "초대하기"}</span>
@@ -340,7 +337,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
       <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
       <motion.div layout="position" className="participant-bottom">
-        <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}{info.name}{me && <span className="me">(나)</span>}</span>
+        <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
         <LevelTrace stream={muted ? null : stream} />
       </motion.div>
       {state && <span className="pstate">{state}</span>}
