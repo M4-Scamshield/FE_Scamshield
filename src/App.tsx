@@ -18,13 +18,12 @@ export default function App() {
 
   return (
     <main data-view={inCall ? "call" : "lobby"}>
-      {!inCall && <header>
-        <BrandLogo />
-        <span className="brand">ScamShield</span>
-        <span className="tag">통화 프로토타입</span>
-      </header>}
-
       <section className={inCall ? "stage" : "card"}>
+        {!inCall && <header className="lobby-brand">
+          <BrandLogo />
+          <span className="brand">ScamShield</span>
+          <span className="tag">안심 통화</span>
+        </header>}
         {inCall ? <CallScreen call={call} /> : <Lobby call={call} defaults={lobbyDefaults} />}
       </section>
 
@@ -38,8 +37,6 @@ export default function App() {
           </ol>
         </details>
       )}
-
-      {!inCall && <p className="hint">같은 기기에서 테스트할 때는 이어폰을 써야 하울링이 나지 않아요.</p>}
     </main>
   );
 }
