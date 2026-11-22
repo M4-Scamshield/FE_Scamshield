@@ -47,6 +47,12 @@ export const LinkIcon = () => (
   </svg>
 );
 
+export const CameraIcon = () => (
+  <svg {...svg}>
+    <path d="M17 10l4-3v10l-4-3M5 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
+  </svg>
+);
+
 export const CameraOffIcon = () => (
   <svg {...svg}>
     <path d="m3 3 18 18M10 5h5a2 2 0 0 1 2 2v3l4-3v10l-4-3M17 17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7c0-.6.3-1.2.7-1.6" />
