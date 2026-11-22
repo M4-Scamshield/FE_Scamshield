@@ -54,6 +54,11 @@ main[data-view="call"] .log { max-height: 100px; }
 .person[data-color="2"] { --tile: #795448; --spk: #f6d4bf; }
 .person[data-tone="me"] { border-color: #a497c5; }
 .participant-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.participant-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.participant-video[data-mirror] { transform: scaleX(-1); }
+.person[data-video] .participant-placeholder { visibility: hidden; }
+.person[data-video]::after { content: ""; position: absolute; inset: auto 0 0; height: 56px; background: linear-gradient(transparent, rgb(0 0 0 / .45)); pointer-events: none; }
+.person[data-video] .participant-bottom, .person[data-video] .participant-badge, .person[data-video] .pstate { z-index: 1; }
 .initial { display: grid; place-items: center; width: clamp(56px, 6.5vw, 90px); height: clamp(56px, 6.5vw, 90px); border-radius: 50%; color: #fff; background: rgb(0 0 0 / .23); font-size: clamp(26px, 3vw, 38px); font-weight: 500; }
 .camera-caption { font-size: 10px; color: rgb(255 255 255 / .52); }
 .participant-bottom { position: absolute; bottom: 12px; left: 12px; right: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }

@@ -17,11 +17,13 @@ export function useCall() {
   const [error, setError] = useState<string | null>(null);
   const [room, setRoom] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const [camera, setCamera] = useState<MediaStream | null>(null);
 
   const cleanup = () => {
     clientRef.current?.hangup();
     clientRef.current = null;
     setMicStream(null);
+    setCamera(null);
   };
 
   const start = useCallback(async ({ room, name }: JoinOptions) => {
@@ -61,6 +63,17 @@ export function useCall() {
     setJoined(null);
   }, []);
 
+  const toggleCamera = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) return;
+    try {
+      await client.setCamera(!client.camera);
+      setCamera(client.camera);
+    } catch (e) {
+      setError(`카메라를 켤 수 없음: ${e instanceof Error ? e.message : e}`);
+    }
+  }, []);
+
   const toggleMute = useCallback(() => {
     const next = !muted;
     clientRef.current?.setMuted(next);
@@ -70,5 +83,5 @@ export function useCall() {
   // 페이지를 떠날 때 정리
   useEffect(() => () => cleanup(), []);
 
-  return { status, room, joined, peers, muted, micStream, logs, error, start, hangup, toggleMute };
+  return { status, room, joined, peers, muted, micStream, camera, logs, error, start, hangup, toggleMute, toggleCamera };
 }

@@ -9,7 +9,8 @@ export interface Participant {
   joinedAt: number;
 }
 
-export type SignalData = { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+/** camera: 내 카메라를 켰는지 끈 지 상대에게 알린다 (서버는 data 를 그대로 전달한다) */
+export type SignalData = { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; camera?: boolean };
 
 /** 브라우저 → 서버 */
 export type ClientMessage =
