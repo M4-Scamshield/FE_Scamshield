@@ -45,6 +45,49 @@ async function detect(page: Page) {
   await expect(page.locator("#line-2")).toBeVisible();
 }
 
+test("risk and findings switch without moving the conversation", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await join(page, "나");
+  await detect(page);
+  const next = page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ });
+  await expect(next).toHaveAttribute("data-unread", "true");
+  await expect(page.getByText("분석 결과 확인하기", { exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
+  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
+  await next.click();
+  const reason = page.getByTestId("analysis-reason");
+  await expect(reason.locator(".why-title")).toBeInViewport({ ratio: 1 });
+  await expect(reason.locator(".why-text")).toBeInViewport({ ratio: 1 });
+  await expect(reason.getByRole("button", { name: "근거가 된 말 4개 보기" })).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: "test-results/analysis-results-visible.png", fullPage: true });
+  await page.getByRole("button", { name: "통화 위험도 보기", exact: true }).click();
+  await expect(next).not.toHaveAttribute("data-unread");
+  await expect(page.getByText("분석 결과 확인하기", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
+  expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
+  await expect(page.locator("#line-2 .judged")).toHaveText("위험 신호");
+  await expect(page.locator("#line-3 .judged")).toHaveText("AI 확인");
+});
+
+test("evidence is available even when the warning explanation has not arrived", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await join(page, "나");
+  await detect(page);
+  await page.evaluate(() => {
+    (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+      eventSeq: 7, level: "WARN", score: 50, evidenceSeqs: [1], reason: null,
+    }) }));
+  });
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  const reason = page.getByTestId("analysis-reason");
+  await expect(reason).toContainText("상세 판단 근거를 기다리고 있어요.");
+  const shortcut = reason.getByRole("button", { name: "근거가 된 말 1개 보기" });
+  await expect(shortcut).toBeInViewport({ ratio: 1 });
+  await shortcut.click();
+  await expect(page.locator("#line-1")).toHaveClass(/flash/);
+  await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
+});
+
 test("evidence selects its speaker by ID, repeats the pulse, and clears after playback", async ({ page, context }) => {
   await join(page, "같은 이름");
   const other = await context.newPage();
@@ -68,6 +111,7 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   await page.locator("#line-1 button").press("Enter");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
   await expect(speaker).not.toHaveAttribute("data-evidence-active");
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
   await page.getByRole("button", { name: "근거가 된 말 4개 보기" }).click();
   await expect(speaker).toHaveAttribute("data-evidence-active", "true");
   await expect(page.locator("#line-2")).toHaveClass(/flash/);
@@ -153,7 +197,8 @@ test("long analysis keeps conversation visible and evidence navigation preserves
     }) }));
   });
   const transcript = page.getByTestId("transcript");
-  const analysis = page.getByRole("region", { name: "통화 분석", exact: true });
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  const analysis = page.getByRole("region", { name: "분석 결과 및 대응 방안", exact: true });
   const list = transcript.getByRole("list", { name: "대화 기록", exact: true });
   await expect(list.locator("li")).toHaveCount(35);
 
@@ -193,7 +238,7 @@ test("long analysis keeps conversation visible and evidence navigation preserves
   expect(await list.evaluate((element) => element.scrollTop)).toBe(readerTop);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  expect(await analysis.evaluate((element) => getComputedStyle(element).overflowY)).toBe("visible");
+  expect(await page.getByRole("region", { name: "통화 분석", exact: true }).evaluate((element) => getComputedStyle(element).overflowY)).toBe("visible");
   expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThan(400);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
