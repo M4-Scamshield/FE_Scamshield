@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
 
@@ -33,12 +33,16 @@ export function AnalysisPanel({
   const [seenFindings, setSeenFindings] = useState<string | null>(null);
   const findingsKey = hasFindings ? JSON.stringify([alert?.eventSeq, action?.eventSeq, judged.reason]) : null;
   const unread = view === "risk" && findingsKey !== null && findingsKey !== seenFindings;
+  const analyzing = protectionState === "listening" && on && lines.some((line) => line.seq > judged.analyzedTo);
+  const guardianState = !on ? "off" : protectionState !== "listening" ? "connecting" : analyzing ? "analyzing" : "listening";
+  const guardianText = !on ? "보호 일시 중지" : protectionState === "reconnecting" ? "연결 확인 중" : protectionState !== "listening" ? "분석 준비 중" : analyzing ? "새 발화 분석 중" : "대화를 듣고 있어요";
   const pageLink = (
     <button
       type="button" className="analysis-page-link" data-unread={unread || undefined}
       aria-label={view === "risk" ? `분석 결과 및 대응 방안 보기${unread ? " · 새 결과" : ""}` : "통화 위험도 보기"}
       title={view === "risk" ? "분석 결과·대응 방안 보기" : "통화 위험도 보기"}
       aria-controls={view === "risk" ? "analysis-findings" : "analysis-risk"}
+      aria-describedby={unread ? "guardian-result-message" : undefined}
       onClick={() => { setSeenFindings(findingsKey); setView(view === "risk" ? "findings" : "risk"); }}
     ><PageArrow previous={view === "findings"} /></button>
   );
@@ -68,7 +72,7 @@ export function AnalysisPanel({
       <div id="analysis-risk" className="guard-page guard-risk" hidden={view !== "risk"} role="region" aria-label="위험도 상세" tabIndex={0}>
         <div className="guard-control">
           <div className="guard-head">
-            <div className="guard-label"><ShieldIcon /><span className="guard-title">실시간 보호</span></div>
+            <div className="guard-label"><AnalysisGuardian state={guardianState} /><span className="guard-title">실시간 보호</span><span className="analysis-state-text" role="status">{guardianText}</span></div>
             <button
               className="switch"
               role="switch"
@@ -82,10 +86,12 @@ export function AnalysisPanel({
             </button>
           </div>
           <div className="guard-message-area">
-            <p className="guard-message" data-state={on ? protectionState : "off"} role="status">
+            {unread ? <div className="guardian-speech" id="guardian-result-message" data-warning={!!alert || undefined} role="status">
+              <strong>{alert ? "위험 신호를 찾았어요!" : "새 분석 결과가 도착했어요."}</strong>
+              <span><b aria-hidden="true">&gt;</b> 버튼을 눌러 결과를 확인하세요.</span>
+            </div> : <p className="guard-message" data-state={on ? protectionState : "off"} role="status">
               {!on ? "필요할 때 다시 켤 수 있어요" : protectionState === "listening" ? "통화를 실시간으로 AI가 분석해요" : protectionState === "reconnecting" ? "분석 연결을 다시 확인하고 있어요" : "분석을 준비하고 있어요"}
-            </p>
-            {unread && <span className="analysis-result-hint" role="status">분석 결과 확인하기</span>}
+            </p>}
             <div className="analysis-switch-row">{view === "risk" && pageLink}</div>
           </div>
         </div>
@@ -147,6 +153,33 @@ export function AnalysisPanel({
 
 function PageArrow({ previous = false }: { previous?: boolean }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" data-previous={previous || undefined}><path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function AnalysisGuardian({ state }: { state: "off" | "connecting" | "analyzing" | "listening" }) {
+  const clipId = useId();
+  const outline = "M28 5 45 12v14c0 11-7 18-17 23-10-5-17-12-17-23V12L28 5Z";
+  return (
+    <svg className="analysis-guardian" data-state={state} data-active={state !== "off" || undefined} viewBox="0 0 72 56" fill="none" aria-hidden="true" focusable="false">
+      <defs><clipPath id={clipId}><path d={outline} /></clipPath></defs>
+      <ellipse className="guardian-shadow" cx="28" cy="50" rx="13" ry="3" />
+      <g className="guardian-body">
+        <path className="guardian-shell" d={outline} strokeWidth="1.5" strokeLinejoin="round" />
+        <g clipPath={`url(#${clipId})`}><rect className="guardian-fill" x="11" y="5" width="34" height="44" /></g>
+        <path className="guardian-shine" d="m17 16 11-5 10 4" strokeWidth="2" strokeLinecap="round" />
+        <rect className="guardian-visor" x="17" y="21" width="22" height="13" rx="6.5" />
+        <g className="guardian-eyes"><path d="M23 26v3M33 26v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></g>
+        <path className="guardian-smile" d="M25 38q3 3 6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path className="guardian-scan" d="M19 23h18" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+        <g className="guardian-magnifier"><g className="guardian-search">
+          <path className="guardian-arm" d="M40 33q5 9 13 2" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          <path d="m58 34 7 8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+          <circle className="guardian-lens" cx="52" cy="27" r="9" stroke="currentColor" strokeWidth="2" />
+          <path className="guardian-lens-shine" d="M47 26a5 5 0 0 1 5-4" strokeWidth="1.8" strokeLinecap="round" />
+        </g></g>
+      </g>
+      <g className="guardian-sparks" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M48 8v4M46 10h4M6 29v4M4 31h4" /></g>
+    </svg>
+  );
 }
 
 /** 대화 기록에서 그 발화로 스크롤하고 잠깐 깜빡인다 */

@@ -51,7 +51,10 @@ test("risk and findings switch without moving the conversation", async ({ page }
   await detect(page);
   const next = page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ });
   await expect(next).toHaveAttribute("data-unread", "true");
-  await expect(page.getByText("분석 결과 확인하기", { exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(page.locator(".guardian-speech")).toBeInViewport({ ratio: 1 });
+  await expect(page.locator(".guardian-speech")).toContainText("위험 신호를 찾았어요!");
+  await expect(page.locator(".guardian-speech")).toContainText("> 버튼을 눌러 결과를 확인하세요.");
+  await expect(next).toHaveAttribute("aria-describedby", "guardian-result-message");
   await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
   const transcriptBefore = await page.getByTestId("transcript").boundingBox();
   await next.click();
@@ -62,7 +65,7 @@ test("risk and findings switch without moving the conversation", async ({ page }
   await page.screenshot({ path: "test-results/analysis-results-visible.png", fullPage: true });
   await page.getByRole("button", { name: "통화 위험도 보기", exact: true }).click();
   await expect(next).not.toHaveAttribute("data-unread");
-  await expect(page.getByText("분석 결과 확인하기", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".guardian-speech")).toHaveCount(0);
   await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
   expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
   await expect(page.locator("#line-2 .judged")).toHaveText("위험 신호");
@@ -128,6 +131,7 @@ test("reduced motion uses a static warning and disabling analysis clears the hig
   await page.emulateMedia({ reducedMotion: "reduce" });
   await join(page, "나");
   await detect(page);
+  expect(await page.locator(".guardian-search").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
   const self = page.getByTestId("person-participant-1");
   await page.locator("#line-1 button").press("Space");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
@@ -273,4 +277,77 @@ test("empty conversation stays centered and protection controls stay fixed when 
   expect(Math.abs(text!.x + text!.width / 2 - (area!.x + area!.width / 2))).toBeLessThan(1);
   await empty.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/transcript-empty-mobile.png", fullPage: true });
+});
+
+test.describe("mock panel preview", () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  test("captures analyzing, risk, and response views without a backend", async ({ page, context }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    let analyzed = false;
+    await context.route("**/api/analysis/calls/test-analysis", (route) => route.fulfill({ json: {
+      current_score: analyzed ? 50 : null, analyzed_to: analyzed ? 3 : 0, action: analyzed ? "WARN" : null,
+    } }));
+    await join(page, "김강욱");
+    const other = await context.newPage();
+    await join(other, "이수진");
+    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "listening");
+    await page.evaluate(() => {
+      const source = (window as any).__testAnalysisEvents;
+      const lines = [
+        { seq: 1, trackId: "participant-2", text: "서울중앙지검 수사관입니다." },
+        { seq: 2, trackId: "participant-2", text: "수사를 위해 안전계좌로 100만 원을 보내세요." },
+        { seq: 3, trackId: "participant-1", text: "송금하기 전에 확인해볼게요." },
+      ];
+      for (const line of lines) source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
+        ...line, kind: "SPEECH", eventSeq: line.seq,
+      }) }));
+    });
+    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "analyzing");
+    expect(await page.locator(".guardian-body").evaluate((element) => getComputedStyle(element).animationName)).toBe("guardian-bob");
+    const sidebar = page.getByRole("complementary", { name: "ScamShield 통화 보호" });
+    await sidebar.screenshot({ path: "test-results/mock-panel-analyzing.png", animations: "disabled" });
+
+    analyzed = true;
+    await page.evaluate(() => {
+      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+        eventSeq: 4, level: "WARN", score: 50, evidenceSeqs: [2],
+        reason: "기관을 사칭하며 안전계좌로 송금을 요구했어요.",
+        message: "송금 요청에 응하지 말고, 상대방의 신원을 확인하세요.",
+      }) }));
+    });
+    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "listening");
+    await expect(page.locator("#line-2 .judged")).toHaveText("위험 신호");
+    await expect(page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ })).toHaveAttribute("data-unread", "true");
+    await sidebar.screenshot({ path: "test-results/mock-panel-risk.png", animations: "disabled" });
+    const transcriptBefore = await page.getByTestId("transcript").boundingBox();
+    await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+    await expect(page.getByTestId("analysis-reason")).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId("analysis-response")).toBeInViewport({ ratio: 1 });
+    expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
+    await sidebar.screenshot({ path: "test-results/mock-panel-findings.png", animations: "disabled" });
+    await page.screenshot({ path: "test-results/mock-panel-full.png", fullPage: true, animations: "disabled" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await sidebar.screenshot({ path: "test-results/mock-panel-mobile.png", animations: "disabled" });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole("button", { name: "통화 위험도 보기", exact: true }).click();
+    await page.getByTestId("analysis-toggle").click();
+    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "off");
+    await sidebar.screenshot({ path: "test-results/mock-panel-off.png", animations: "disabled" });
+    analyzed = false;
+    await page.getByTestId("analysis-toggle").click();
+    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "listening");
+    await page.evaluate(() => {
+      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
+        eventSeq: 1, seq: 1, kind: "SPEECH", trackId: "participant-2", text: "수사를 위해 안전계좌로 100만 원을 보내세요.",
+      }) }));
+    });
+    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "analyzing");
+    for (let frame = 0; frame < 28; frame++) {
+      await page.locator(".guard-control").screenshot({ path: `test-results/guardian-frames/${String(frame).padStart(2, "0")}.png` });
+      await page.waitForTimeout(60);
+    }
+  });
 });
