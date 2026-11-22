@@ -8,7 +8,7 @@ import {
   type InputType,
 } from "../../api/analysis/analysisApi";
 import { PcmUploader, type UploaderState } from "../../services/analysis/PcmUploader";
-import type { PeerView } from "../../services/webrtc/MeshClient";
+import type { JoinedInfo } from "../../services/webrtc/MeshClient";
 import type { AnalysisState } from "../../api/analysis/analysisApi";
 
 /** 가장 최근 AI 판단. 정상·오탐 판단은 SSE 로 오지 않아서 상태 API 로 읽는다 */
@@ -55,15 +55,12 @@ export interface AnalysisAction {
 
 export type AnalysisStatus = "off" | "starting" | "on" | "error";
 
-const ME = "me";
-const peerTrack = (p: PeerView) => `peer-${p.info.id}`;
-
 /**
- * 보호받는 사람의 브라우저 한 대가 분석을 켠다.
- * 내 마이크(me)와 상대마다의 원격 음성(peer-<id>)을 화자별로 올리고, 결과는 SSE 로 받는다.
- * 상대 브라우저는 아무것도 안 한다 → 토큰을 나눌 필요가 없다.
+ * 통화방 하나 = 분석 하나. 참가자 모두가 방에 들어오자마자 분석에 붙는다(토글 없음).
+ * 각 브라우저는 자기 마이크만 trackId = 내 참가자 id 로 올린다 → STT 채널 수 = 참가자 수.
+ * 결과(전사·경고·안내)는 같은 callId 의 SSE 로 모두가 똑같이 받는다.
  */
-export function useAnalysis(micStream: MediaStream | null, peers: PeerView[]) {
+export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | null) {
   const [status, setStatus] = useState<AnalysisStatus>("off");
   const [error, setError] = useState<string | null>(null);
   const [alert, setAlert] = useState<AnalysisAlert | null>(null);
@@ -99,12 +96,6 @@ export function useAnalysis(micStream: MediaStream | null, peers: PeerView[]) {
     [onTrackState],
   );
 
-  const stopUpload = useCallback((trackId: string) => {
-    uploadersRef.current.get(trackId)?.stop();
-    uploadersRef.current.delete(trackId);
-    setTracks(({ [trackId]: _, ...rest }) => rest);
-  }, []);
-
   const disable = useCallback(() => {
     sourceRef.current?.close();
     sourceRef.current = null;
@@ -123,11 +114,11 @@ export function useAnalysis(micStream: MediaStream | null, peers: PeerView[]) {
   }, []);
 
   const enable = useCallback(async () => {
-    if (callRef.current || !micStream) return;
+    if (callRef.current || !micStream || !joined) return;
     setError(null);
     setStatus("starting");
     try {
-      const call = await createAnalysisCall();
+      const call = await createAnalysisCall(joined.callId);
       callRef.current = call;
 
       const source = new EventSource(analysisEventsUrl(call));
@@ -169,26 +160,19 @@ export function useAnalysis(micStream: MediaStream | null, peers: PeerView[]) {
       // EventSource 가 알아서 다시 붙는다. 그동안 화면이 "듣는 중"으로 남지 않게 표시만 한다
       source.onerror = () => setStreamDown(true);
 
-      startUpload(ME, micStream);
+      startUpload(joined.self.id, micStream);
       setStatus("on");
     } catch (e) {
       disable();
       setStatus("error");
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [micStream, startUpload, disable]);
+  }, [micStream, joined, startUpload, disable]);
 
-  // 상대가 들어오고 나가는 데 맞춰 업로더를 붙이고 뗀다
+  // 방에 들어와 마이크가 준비되면 바로 켠다. 실패(error)하면 자동으로 다시 시도하지 않는다
   useEffect(() => {
-    if (status !== "on") return;
-    const live = new Set<string>([ME]);
-    for (const p of peers) {
-      if (!p.stream) continue;
-      live.add(peerTrack(p));
-      startUpload(peerTrack(p), p.stream);
-    }
-    for (const id of [...uploadersRef.current.keys()]) if (!live.has(id)) stopUpload(id);
-  }, [status, peers, startUpload, stopUpload]);
+    if (status === "off" && micStream && joined) void enable();
+  }, [status, micStream, joined, enable]);
 
   // 정상 판정은 이벤트가 없으니 켜져 있는 동안 1.5초마다 판단 진행을 읽는다
   useEffect(() => {
@@ -214,10 +198,10 @@ export function useAnalysis(micStream: MediaStream | null, peers: PeerView[]) {
     return () => clearInterval(id);
   }, [status]);
 
-  // 통화가 끝나면(마이크가 사라지면) 분석도 끈다
+  // 통화가 끝나면(마이크나 방이 사라지면) 분석도 끈다
   useEffect(() => {
-    if (!micStream) disable();
-  }, [micStream, disable]);
+    if (!micStream || !joined) disable();
+  }, [micStream, joined, disable]);
 
   useEffect(() => () => disable(), [disable]);
 
