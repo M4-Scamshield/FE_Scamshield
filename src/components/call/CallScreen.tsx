@@ -17,7 +17,7 @@ import "./CallScreen.css";
 const STATUS_TEXT: Record<CallStatus, string> = {
   idle: "대기",
   starting: "준비 중…",
-  waiting: "다른 참가자를 기다리는 중…",
+  waiting: "다른 참가자를 기다리는 중",
   connecting: "연결 중…",
   connected: "통화 중",
   failed: "연결 실패",
@@ -154,7 +154,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           </button>}
           <div className="meeting-meta">
             <span className="status" data-status={status} data-testid="status">
-              <span className="connection-dot" aria-hidden />{STATUS_TEXT[status]}
+              <span className="connection-dot" aria-hidden />
+              <span className="status-message">{STATUS_TEXT[status]}{status === "waiting" && <span className="waiting-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>}</span>
             </span>
             {status === "connected" && <span className="timer">{formatTime(seconds)}</span>}
             <button
