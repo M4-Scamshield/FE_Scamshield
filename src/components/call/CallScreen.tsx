@@ -6,7 +6,7 @@ import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
-import { LevelTrace } from "./LevelTrace";
+import { useSpeaking } from "../../hooks/call/useSpeaking";
 import { BrandLogo } from "../common/BrandLogo";
 import { SoundSettings } from "./SoundSettings";
 import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
@@ -182,7 +182,6 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         info={joined.self}
                         me
                         stream={call.micStream}
-                        state={muted ? "음소거" : ""}
                         track={analysis.tracks[joined.self.id]}
                         muted={muted}
                         soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
@@ -218,17 +217,15 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
           <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
           <div className="controls">
-            <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"}>
+            <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"} title={muted ? "음소거 해제" : "음소거"}>
               {muted ? <MicOffIcon /> : <MicIcon />}
-              <span>마이크</span>
             </button>
             <SoundSettings call={call} />
-            <button className="round camera-control" onClick={toggleCamera} aria-pressed={!!camera} aria-label={camera ? "카메라 끄기" : "카메라 켜기"}>
+            <button className="round camera-control" onClick={toggleCamera} data-active={!!camera} aria-pressed={!!camera} aria-label={camera ? "카메라 끄기" : "카메라 켜기"} title={camera ? "카메라 끄기" : "카메라 켜기"}>
               {camera ? <CameraIcon /> : <CameraOffIcon />}
-              <span>카메라</span>
             </button>
-            <button className="round" onClick={copyInvite} aria-label="초대 링크 복사">
-              <LinkIcon /><span aria-live="polite">{copied ? "복사 완료" : "초대하기"}</span>
+            <button className="round" onClick={copyInvite} data-active={copied} aria-label="초대 링크 복사" title={copied ? "복사 완료" : "초대 링크 복사"}>
+              <LinkIcon /><span className="invite-feedback" role="status">{copied ? "초대 링크가 복사되었습니다" : ""}</span>
             </button>
           </div>
           <button className="leave-button" onClick={hangup} aria-label="통화 나가기"><HangupIcon /><span>나가기</span></button>
@@ -283,7 +280,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
 
 interface ParticipantTileProps {
   info: ParticipantInfo;
-  state: string;
+  state?: string;
   stream: MediaStream | null;
   track?: UploaderState;
   color?: number;
@@ -312,6 +309,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   video = null,
 }, ref) {
   const present = useIsPresent();
+  const voice = useSpeaking(present && !muted ? stream : null);
   return (
     <motion.li
       ref={ref}
@@ -324,6 +322,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       data-tone={tone}
       data-color={color}
       data-track={track}
+      data-speaking={voice.speaking || undefined}
       data-evidence-active={evidencePulse !== undefined || undefined}
       data-testid={`person-${info.id}`}
       data-video={video ? "on" : undefined}
@@ -350,7 +349,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
         const bounds = event.currentTarget.getBoundingClientRect();
         onSoundMenu({ participantId: info.id, x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2, trigger: event.currentTarget });
       }}
-      style={{ pointerEvents: present ? undefined : "none" }}
+      style={{ pointerEvents: present ? undefined : "none", "--voice-level": voice.level } as CSSProperties}
     >
       {video && <TileVideo stream={video} mirror={me} />}
       {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
@@ -358,7 +357,6 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
       <motion.div layout="position" className="participant-bottom">
         <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
-        <LevelTrace stream={muted ? null : stream} />
       </motion.div>
       {state && <span className="pstate">{state}</span>}
     </motion.li>
