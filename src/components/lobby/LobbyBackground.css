@@ -1,0 +1,212 @@
+main[data-view="lobby"] {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+}
+
+/* Match the scenery's blue and mint light without changing the form geometry. */
+main[data-view="lobby"] > .card {
+  --muted: #9aabc2;
+  --line: #283b55;
+  --safe: #4fe3bc;
+  border-color: transparent;
+  background:
+    linear-gradient(145deg, #142239f5, #0d1726f7 55%, #10212af7) padding-box,
+    linear-gradient(135deg, #608de080, #2a456666 48%, #49c7b357) border-box;
+  box-shadow: inset 0 1px 0 #c7e0ff0a, 0 20px 60px #02081366, 0 0 32px #2867b00d;
+  backdrop-filter: blur(16px);
+}
+main[data-view="lobby"] .lobby input {
+  background: #080f1ce6;
+  box-shadow: inset 0 1px 4px #0003;
+}
+main[data-view="lobby"] .lobby .primary {
+  background: linear-gradient(110deg, #4fe3b3, #43dfca);
+  box-shadow: inset 0 1px 0 #d1fff34d, 0 4px 18px #24c9aa14;
+}
+
+/* Fixed, clipped scenery never intercepts input or changes the form layout. */
+.lobby-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at -5% 67%, #1046b35c, transparent 43%),
+    radial-gradient(ellipse at 105% 27%, #007f704d, transparent 43%),
+    radial-gradient(ellipse at 78% 100%, #12396738, transparent 39%),
+    #080e19;
+}
+
+.background-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(#7195d009 1px, transparent 1px),
+    linear-gradient(90deg, #7195d009 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(90deg, #000, #0005 42%, #0005 58%, #000);
+}
+
+.background-orb { position: absolute; border-radius: 50%; }
+.orb-blue-top {
+  width: clamp(420px, 48vw, 820px);
+  aspect-ratio: 1;
+  left: -23vw;
+  top: -36vw;
+  background: radial-gradient(circle at 65% 80%, #183b8c35, #0b152a90 66%);
+  border: 1px solid #527dce38;
+  box-shadow: inset -2px -2px 6px #396bca1a;
+}
+.orb-mint {
+  width: clamp(440px, 44vw, 760px);
+  aspect-ratio: 1;
+  right: -25vw;
+  top: -30vw;
+  background: radial-gradient(circle at 37% 75%, #14cab735, #06413945 61%, #071c2433 85%);
+  border: 1px solid #59f4d9a6;
+  box-shadow: -2px 3px 12px #28e2c33b, inset 3px -4px 16px #42ffe82e;
+}
+.orb-blue-bottom {
+  width: clamp(660px, 65vw, 1200px);
+  aspect-ratio: 1;
+  left: -34vw;
+  bottom: -52vw;
+  background: radial-gradient(circle at 65% 15%, #2865fb55, #153d9b28 36%, #07132699 70%);
+  border: 1px solid #639cfa99;
+  box-shadow: 0 -2px 9px #498dff5e, inset 0 3px 10px #4ba7ff40;
+}
+
+.background-wave {
+  --wave-color: #3e7aff;
+  position: absolute;
+  top: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(5px, .55vw, 9px);
+  width: clamp(230px, 31vw, 480px);
+  height: 190px;
+  opacity: .65;
+  transform: translateY(-50%);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+.background-wave-left { right: calc(50% + 224px); }
+.background-wave-right { left: calc(50% + 224px); --wave-color: #24d9c6; }
+.background-wave > span {
+  flex: 1;
+  min-width: 0;
+  max-width: 9px;
+  height: var(--bar-height);
+  border-radius: 10px;
+  background: linear-gradient(var(--wave-color), color-mix(in srgb, var(--wave-color) 40%, transparent));
+  box-shadow: 0 0 13px color-mix(in srgb, var(--wave-color) 18%, transparent);
+  animation: lobby-wave var(--bar-duration) var(--bar-delay) ease-in-out infinite alternate;
+}
+
+.background-tile {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 70px;
+  aspect-ratio: 1;
+  border: 1px solid #7bb2ff8c;
+  border-radius: 18px;
+  color: #d9eeff;
+  background: linear-gradient(145deg, #2864cfb3, #152752b3);
+  box-shadow: inset 0 1px 9px #9cd6ff40, 0 14px 40px #08215555;
+  animation: lobby-tile-drift 8s ease-in-out infinite alternate;
+}
+.background-tile > svg { width: 32px; height: 32px; }
+.phone-tile { --tilt: -16deg; left: max(28px, calc(50% - 510px)); top: 28%; }
+.shield-tile {
+  --tilt: 16deg;
+  right: max(28px, calc(50% - 500px));
+  top: 22%;
+  border-color: #6ccfda73;
+  background: linear-gradient(145deg, #23586eb3, #0b343cb3);
+  animation-delay: -4s;
+}
+.shield-tile .shield { color: #d3f8f4; width: 36px; height: 36px; stroke-width: 1.5; }
+
+.background-emblem {
+  position: absolute;
+  right: max(28px, calc(50% - 590px));
+  bottom: 14%;
+  width: clamp(130px, 14vw, 200px);
+  aspect-ratio: 1;
+}
+.emblem-floating {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: lobby-shield-sway 7s ease-in-out infinite alternate;
+}
+.emblem-floating > svg { width: 100%; height: 100%; filter: drop-shadow(7px 14px 15px #031934b3); }
+.emblem-shadow {
+  position: absolute;
+  width: 130%;
+  height: 22%;
+  left: -15%;
+  bottom: -15%;
+  background: radial-gradient(ellipse, #1b9bd73d, #1269a612 45%, transparent 70%);
+  transform: scaleY(.6);
+}
+.emblem-orbit {
+  position: absolute;
+  inset: 50% -22% 15%;
+  border: 3px solid #30e3df;
+  border-top-color: #30e3df2e;
+  border-left-color: #58b7ff;
+  border-radius: 50%;
+  transform: rotate(-15deg);
+  box-shadow: 0 2px 8px #27e8e840, inset 0 -2px 4px #27e8e830;
+}
+.emblem-spark { position: absolute; width: 5px; height: 19px; border-radius: 4px; background: #b5eaff; }
+.spark-first { top: 1%; right: 4%; transform: rotate(27deg); }
+.spark-second { top: 11%; right: -5%; height: 13px; transform: rotate(60deg); }
+
+.background-stars > span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #8df9f4; box-shadow: 0 0 8px 2px #2edbe766; animation: lobby-star-glow 4s ease-in-out infinite alternate; }
+.background-stars > span:nth-child(1) { left: 10%; top: 42%; }
+.background-stars > span:nth-child(2) { left: 22%; top: 71%; animation-delay: -2s; }
+.background-stars > span:nth-child(3) { right: 22%; top: 13%; animation-delay: -1s; }
+.background-stars > span:nth-child(4) { right: 8%; top: 44%; animation-delay: -3s; }
+.background-stars > span:nth-child(5) { left: 31%; top: 21%; animation-delay: -2.5s; }
+.background-stars > span:nth-child(6) { right: 32%; bottom: 13%; animation-delay: -.5s; }
+
+@keyframes lobby-wave { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@keyframes lobby-tile-drift {
+  from { transform: translate3d(-5px, 5px, 0) rotate(var(--tilt)); }
+  to { transform: translate3d(7px, -9px, 0) rotate(calc(var(--tilt) + 7deg)); }
+}
+@keyframes lobby-shield-sway {
+  from { transform: translate3d(-10px, -5px, 0) rotate(-10deg); }
+  to { transform: translate3d(10px, 5px, 0) rotate(4deg); }
+}
+@keyframes lobby-star-glow { from { opacity: .3; } to { opacity: .85; } }
+
+/* Hold the scenery still while someone interacts with the form. */
+main[data-view="lobby"]:focus-within .lobby-background * { animation-play-state: paused; }
+
+@media (max-width: 1000px) {
+  .background-tile { width: 54px; border-radius: 14px; }
+  .phone-tile { left: 6%; top: 22%; }
+  .shield-tile { right: 6%; top: 18%; }
+  .background-emblem { right: 4%; width: 130px; bottom: 12%; }
+  .background-wave { opacity: .45; }
+}
+@media (max-width: 700px) {
+  .background-tile, .background-emblem, .background-stars { display: none; }
+  .background-wave { width: 200px; opacity: .22; }
+  .background-wave-left { right: calc(50% + 185px); }
+  .background-wave-right { left: calc(50% + 185px); }
+  .orb-blue-top { left: -290px; top: -340px; }
+  .orb-mint { width: 420px; right: -320px; top: -280px; opacity: .5; }
+  .orb-blue-bottom { width: 720px; left: -420px; bottom: -570px; opacity: .65; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lobby-background * { animation: none !important; }
+  .background-tile { transform: rotate(var(--tilt)); }
+  .background-wave > span { transform: scaleY(.65); }
+}

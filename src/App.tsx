@@ -3,6 +3,7 @@ import { CallScreen } from "./components/call/CallScreen";
 import { Lobby, readLobbyDefaults } from "./components/lobby/Lobby";
 import { useCall } from "./hooks/call/useCall";
 import { BrandLogo } from "./components/common/BrandLogo";
+import { LobbyBackground } from "./components/lobby/LobbyBackground";
 
 const lobbyDefaults = readLobbyDefaults();
 
@@ -18,6 +19,7 @@ export default function App() {
 
   return (
     <main data-view={inCall ? "call" : "lobby"}>
+      {!inCall && <LobbyBackground />}
       <section className={inCall ? "stage" : "card"}>
         {!inCall && <header className="lobby-brand">
           <BrandLogo />
