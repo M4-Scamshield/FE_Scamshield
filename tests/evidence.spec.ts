@@ -133,3 +133,89 @@ test("collapsed protection badge reflects listening, connection loss, and detect
   await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
   await expect(indicator).toHaveCount(0);
 });
+
+test("long analysis keeps conversation visible and evidence navigation preserves both scroll areas", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await join(page, "나");
+  await detect(page);
+  await page.evaluate(() => {
+    const source = (window as any).__testAnalysisEvents;
+    for (let seq = 6; seq <= 35; seq++) {
+      source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
+        eventSeq: seq + 1, seq, kind: "SPEECH", trackId: "participant-1", text: `대화를 이어가는 중입니다. ${seq}`,
+      }) }));
+    }
+    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+      eventSeq: 37, level: "WARN", score: 90, evidenceSeqs: [1],
+      reason: "기관을 사칭하며 급하게 송금하도록 유도하는 대화가 이어지고 있습니다. ".repeat(30),
+      message: "요청받은 내용을 확인하세요.",
+    }) }));
+  });
+  const transcript = page.getByTestId("transcript");
+  const analysis = page.getByRole("region", { name: "통화 분석", exact: true });
+  const list = transcript.getByRole("list", { name: "대화 기록", exact: true });
+  await expect(list.locator("li")).toHaveCount(35);
+
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    const heading = await transcript.getByRole("heading", { name: "대화 기록" }).boundingBox();
+    const bounds = await list.boundingBox();
+    expect(bounds!.height).toBeGreaterThan(200);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+    expect(heading!.y).toBeGreaterThan(0);
+    expect(await analysis.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    expect(await page.locator(".safety-content").evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+  }
+
+  // Following new speech moves only the transcript; the analysis stays where it was read.
+  await analysis.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  const analysisTop = await analysis.evaluate((element) => element.scrollTop);
+  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
+    eventSeq: 38, seq: 36, kind: "SPEECH", trackId: "participant-1", text: "새로운 대화입니다.",
+  }) })));
+  await expect(list.locator("li")).toHaveCount(36);
+  await expect.poll(() => list.evaluate((element) => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(2);
+  expect(await analysis.evaluate((element) => element.scrollTop)).toBe(analysisTop);
+  await page.screenshot({ path: "test-results/transcript-long-analysis.png", fullPage: true });
+
+  // The evidence link still reveals an older line without pushing the transcript out of view.
+  await page.getByRole("button", { name: "근거가 된 말 1개 보기", exact: true }).click();
+  await expect(page.locator("#line-1")).toBeInViewport();
+  await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
+
+  // Reading older speech must not jump to the newest line when another utterance arrives.
+  const readerTop = await list.evaluate((element) => element.scrollTop);
+  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
+    eventSeq: 39, seq: 37, kind: "SPEECH", trackId: "participant-1", text: "이전 대화를 읽는 동안 새로 도착한 발화입니다.",
+  }) })));
+  await expect(list.locator("li")).toHaveCount(37);
+  expect(await list.evaluate((element) => element.scrollTop)).toBe(readerTop);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await analysis.evaluate((element) => getComputedStyle(element).overflowY)).toBe("visible");
+  expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThan(400);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("empty conversation guidance is centered before speech and after analysis is disabled", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await join(page, "나");
+  const empty = page.locator(".transcript-empty");
+  await expect(empty).toContainText("대화가 시작되면");
+  for (const active of [true, false]) {
+    if (!active) await page.getByTestId("analysis-toggle").click();
+    await expect(empty).toContainText(active ? "대화가 시작되면" : "분석을 시작하면");
+    const area = await empty.boundingBox();
+    const text = await empty.locator("span").boundingBox();
+    expect(Math.abs(text!.x + text!.width / 2 - (area!.x + area!.width / 2))).toBeLessThan(1);
+    expect(Math.abs(text!.y + text!.height / 2 - (area!.y + area!.height / 2))).toBeLessThan(1);
+  }
+  await page.screenshot({ path: "test-results/transcript-empty-centered.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const area = await empty.boundingBox();
+  const text = await empty.locator("span").boundingBox();
+  expect(Math.abs(text!.x + text!.width / 2 - (area!.x + area!.width / 2))).toBeLessThan(1);
+  await empty.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/transcript-empty-mobile.png", fullPage: true });
+});

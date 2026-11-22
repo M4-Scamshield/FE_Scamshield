@@ -137,7 +137,10 @@ main[data-view="call"] .log { max-height: 100px; }
 .watch-status strong { font-size: var(--text-small); font-weight: var(--weight-medium); }
 .watch-dot { width: 6px; height: 6px; flex: none; background: var(--watch); border-radius: 50%; }
 .watch-warn { margin: 0; padding: 10px 24px; background: #fff4e1; font-size: var(--text-small); color: #a7620e; line-height: 1.6; }
-.safety-content { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 28px; padding: 24px; scrollbar-width: thin; scrollbar-color: #cad7d2 transparent; }
+.safety-content { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 28px; padding: 24px; }
+/* Long explanations scroll separately, leaving at least half the space for conversation. */
+.analysis-scroll { flex: 0 1 auto; min-height: 0; max-height: calc(50% - 14px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #cad7d2 transparent; }
+.analysis-scroll:focus-visible, .transcript-lines:focus-visible { outline: 2px solid #227a67; outline-offset: -2px; }
 .guard { display: flex; flex-direction: column; gap: 20px; }
 .guard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .guard-title { font-size: var(--text-body); font-weight: var(--weight-semibold); }
@@ -180,12 +183,12 @@ main[data-view="call"] .log { max-height: 100px; }
 .safety-sidebar .error { font-size: var(--text-body); }
 
 /* 대화의 화자 색은 참가자 타일과 일치시킨다. 위험 근거만 주황으로 강조한다. */
-.transcript { flex: 1; min-height: 160px; display: flex; flex-direction: column; gap: 16px; }
-.transcript-head { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e0e6e3; }
+.transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.transcript-head { position: relative; flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e0e6e3; }
 .transcript-head .panel-section-title { padding-bottom: 0; border: 0; }
 .transcript-head > span { position: static;   color: #8b968f; font-size: var(--text-small); white-space: nowrap; }
-.transcript-empty { margin: 0; padding: 0; color: #68786f; font-size: var(--text-small); line-height: 1.65; }
-.transcript-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 45vh; overflow-y: auto; flex: 1; min-height: 120px; scrollbar-width: thin; scrollbar-color: #cad7d2 transparent; }
+.transcript-empty { flex: 1; min-height: 160px; display: grid; place-content: center; margin: 0; padding: 16px 0; color: #68786f; font-size: var(--text-small); line-height: 1.65; text-align: center; }
+.transcript-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; min-height: 0; scrollbar-width: thin; scrollbar-color: #cad7d2 transparent; }
 .transcript-lines li { --spk: #718078; flex: none; padding: 10px 12px; border: 1px solid #dfe6e0; border-radius: 7px; background: #fff; overflow-wrap: anywhere; }
 .transcript-lines li[data-speaker="me"] { --spk: var(--spk-me); }
 .transcript-lines li[data-color="0"] { --spk: var(--spk-0); }
@@ -241,7 +244,9 @@ main[data-view="call"] .log { max-height: 100px; }
   .meeting-toolbar { padding: 12px 18px; }
   .safety-sidebar { border-left: 0; border-top: 1px solid #dce4e3; }
   .safety-content { overflow: visible; }
-  .transcript-lines { max-height: 400px; }
+  .analysis-scroll { flex: none; max-height: none; overflow: visible; }
+  .transcript { flex: none; }
+  .transcript-lines { flex: none; max-height: min(65dvh, 560px); }
   .safety-brand { min-height: 76px; }
 }
 @media (max-width: 600px) {
