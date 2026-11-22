@@ -119,6 +119,12 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     if (!colors.current.has(track)) colors.current.set(track, colors.current.size % 3);
   }
   const watch = watchState(analysis);
+  const collapsedProtectionText = watch.state === "listening" ? "ScamShield 보호 중"
+    : watch.state === "WARN" ? "ScamShield 위험 감지"
+    : watch.state === "SUSPECT" ? "ScamShield 주의 감지"
+    : watch.state === "degraded" ? "ScamShield 재연결 중"
+    : "ScamShield 연결 중";
+  const showCollapsedProtection = !panelOpen && (analysis.status === "on" || analysis.status === "starting");
 
   const copyInvite = async () => {
     const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(call.room)}`;
@@ -134,11 +140,19 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   return (
     <div className="call-layout" data-watch={watch.state} data-panel-open={panelOpen}>
       <section className="meeting" aria-label="통화 공간">
-        <div className="meeting-head">
+        <div className="meeting-head" data-protection-visible={showCollapsedProtection || undefined}>
           <div className="meeting-room">
             <span className="room-label" aria-hidden>회의룸</span>
             <h1 className="room" title={call.room} aria-label={`회의룸: ${call.room}`}>{call.room}</h1>
           </div>
+          {showCollapsedProtection && <button
+            type="button" className="protection-indicator" data-state={watch.state}
+            data-testid="header-protection" aria-controls="call-safety-panel"
+            aria-label={`${collapsedProtectionText} · 보호 패널 열기`}
+            onClick={() => setPanelOpen(true)}
+          >
+            <ShieldIcon /><span role="status">{collapsedProtectionText}</span>
+          </button>}
           <div className="meeting-meta">
             <span className="status" data-status={status} data-testid="status">
               <span className="connection-dot" aria-hidden />{STATUS_TEXT[status]}

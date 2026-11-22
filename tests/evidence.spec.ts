@@ -92,3 +92,43 @@ test("reduced motion uses a static warning and disabling analysis clears the hig
   await expect(self).not.toHaveAttribute("data-evidence-active");
   await expect(page.getByTestId("transcript").locator("li")).toHaveCount(0);
 });
+
+test("collapsed protection badge reflects listening, connection loss, and detected danger", async ({ page }) => {
+  await join(page, "나");
+  const indicator = page.getByTestId("header-protection");
+  await expect(page.getByRole("heading", { name: "회의룸: audio-test", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
+  await expect(indicator).toHaveCount(0);
+  await page.getByRole("button", { name: "보호 패널 열기", exact: true }).click();
+  await page.getByTestId("analysis-toggle").click();
+  await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-track", "open");
+  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
+  await expect(indicator).toHaveText("ScamShield 보호 중");
+  await expect(indicator).toHaveAttribute("data-state", "listening");
+  const header = await page.locator(".meeting-head").boundingBox();
+  const badge = await indicator.boundingBox();
+  expect(Math.abs(badge!.x + badge!.width / 2 - (header!.x + header!.width / 2))).toBeLessThan(1);
+  await page.screenshot({ path: "test-results/header-protection.png", fullPage: true });
+  await page.setViewportSize({ width: 375, height: 812 });
+  const mobileBadge = await indicator.boundingBox();
+  expect(Math.abs(mobileBadge!.x + mobileBadge!.width / 2 - 375 / 2)).toBeLessThan(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.screenshot({ path: "test-results/header-protection-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await indicator.click();
+  await expect(page.getByRole("complementary", { name: "ScamShield 통화 보호" })).toBeVisible();
+  await expect(indicator).toHaveCount(0);
+  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
+  await page.evaluate(() => (window as any).__testAnalysisEvents.onerror(new Event("error")));
+  await expect(indicator).toHaveText("ScamShield 재연결 중");
+  await expect(indicator).toHaveAttribute("data-state", "degraded");
+  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("alert", { data: JSON.stringify({
+    eventSeq: 1, level: "WARN", score: 90, reason: "위험 신호 감지",
+  }) })));
+  await expect(indicator).toHaveText("ScamShield 위험 감지");
+  await expect(indicator).toHaveAttribute("data-state", "WARN");
+  await indicator.click();
+  await page.getByTestId("analysis-toggle").click();
+  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
+  await expect(indicator).toHaveCount(0);
+});
