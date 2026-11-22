@@ -37,9 +37,9 @@ export function TranscriptPanel({
 
   return (
     <section className="transcript" data-testid="transcript">
-      <p className="transcript-title">대화 기록</p>
+      <div className="transcript-head"><h2 className="panel-section-title">대화 기록</h2>{lines.length > 0 && <span>{lines.length}개 발화</span>}</div>
       {lines.length === 0 ? (
-        <p className="transcript-empty">{active ? "말이 시작되면 여기에 글자로 나와요." : "탐지를 켜면 대화가 여기에 글자로 나와요."}</p>
+        <p className="transcript-empty">{active ? <>대화가 시작되면 화자별로<br />실시간으로 표시됩니다.</> : <>분석을 시작하면 대화 내용이<br />실시간으로 표시됩니다.</>}</p>
       ) : (
         <ol ref={boxRef} className="transcript-lines" onScroll={onScroll} aria-live="polite">
           {lines.map((l) => (

@@ -46,3 +46,29 @@ export const LinkIcon = () => (
     <path d="M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1" />
   </svg>
 );
+
+export const CameraOffIcon = () => (
+  <svg {...svg}>
+    <path d="m3 3 18 18M10 5h5a2 2 0 0 1 2 2v3l4-3v10l-4-3M17 17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7c0-.6.3-1.2.7-1.6" />
+  </svg>
+);
+
+export const PeopleIcon = () => (
+  <svg {...svg}>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M21 20v-2a6 6 0 0 0-4-5.7" />
+  </svg>
+);
+
+export const PanelIcon = () => (
+  <svg {...svg}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M15 4v16M18 8h.01M18 12h.01" />
+  </svg>
+);
+
+export const CloseIcon = () => (
+  <svg {...svg}>
+    <path d="m6 6 12 12M18 6 6 18" />
+  </svg>
+);

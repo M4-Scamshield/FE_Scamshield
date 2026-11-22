@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { CallScreen } from "./components/call/CallScreen";
 import { Lobby, readLobbyDefaults } from "./components/lobby/Lobby";
 import { useCall } from "./hooks/call/useCall";
-import { ShieldIcon } from "./components/common/icons";
+import { BrandLogo } from "./components/common/BrandLogo";
 
 const lobbyDefaults = readLobbyDefaults();
 
@@ -18,11 +18,11 @@ export default function App() {
 
   return (
     <main data-view={inCall ? "call" : "lobby"}>
-      <header>
-        <ShieldIcon />
+      {!inCall && <header>
+        <BrandLogo />
         <span className="brand">ScamShield</span>
         <span className="tag">통화 프로토타입</span>
-      </header>
+      </header>}
 
       <section className={inCall ? "stage" : "card"}>
         {inCall ? <CallScreen call={call} /> : <Lobby call={call} defaults={lobbyDefaults} />}
@@ -39,7 +39,7 @@ export default function App() {
         </details>
       )}
 
-      <p className="hint">같은 기기에서 테스트할 때는 이어폰을 써야 하울링이 나지 않아요.</p>
+      {!inCall && <p className="hint">같은 기기에서 테스트할 때는 이어폰을 써야 하울링이 나지 않아요.</p>}
     </main>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
 
-/** 통화 화면 아래 붙는 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
+/** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
 /** 분석 서버는 근거 앞에 누구 말 때문인지 "[peer-<id>]" 를 붙인다 → 참가자 이름으로 바꿔 보여 준다 */
 function withName(reason: string, names: Map<string, string>) {
   return reason.replace(/^\[([^\]]+)\] /, (whole, track: string) => (names.has(track) ? `[${names.get(track)}] ` : whole));
@@ -18,36 +18,40 @@ export function AnalysisPanel({
   const on = status === "on" || status === "starting";
   // JEV 가 의심했지만 Gemini 가 다시 보고 피싱이 아니라고 함: 경고 없이(OBSERVE) 근거만 있다
   const falsePositive = judged.action === "OBSERVE" && !!judged.reason;
+  const score = alert?.score ?? judged.score;
+  const measured = on && score !== null;
+  const riskBand = alert?.level === "WARN" ? "danger" : alert || (measured && score >= 40) ? "caution" : measured ? "safe" : "idle";
 
   return (
     <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis">
       <div className="guard-head">
-        <span className="guard-title">사기 탐지</span>
+        <span className="guard-title">실시간 보호</span>
         <button
           className="switch"
           role="switch"
+          aria-label="실시간 보호"
           aria-checked={on}
           onClick={on ? disable : enable}
           disabled={status === "starting"}
           data-testid="analysis-toggle"
         >
-          {status === "starting" ? "켜는 중…" : on ? "켜짐" : "꺼짐"}
+          {on ? "ON" : "OFF"}
         </button>
       </div>
 
-      {status === "on" && !alert && (
-        <div className="verdict" data-testid="analysis-verdict">
-          <span className="verdict-label">AI 판단</span>
-          {judged.analyzedTo > 0 && judged.score !== null ? (
-            <>
-              <strong>{falsePositive ? "피싱 아님" : judged.score >= 40 ? "주의" : "정상"}</strong>
-              <span className="verdict-score">위험도 {judged.score}</span>
-            </>
-          ) : (
-            <strong className="verdict-wait">{lines.length > 0 ? "판단 중…" : "대화를 기다리는 중"}</strong>
-          )}
+      <div className="risk-section">
+        <h2 className="panel-section-title">통화 위험도</h2>
+        <div className="risk-summary" data-risk={riskBand} data-measured={measured}>
+          <div className="risk-heading">
+            <strong>{!on ? "분석 대기 중" : alert?.level === "WARN" ? "사기 위험 감지" : alert ? "의심 정황 감지" : !measured ? lines.length > 0 ? "위험 신호 분석 중" : "대화 분석 대기 중" : falsePositive ? "재확인 완료 · 피싱 아님" : score >= 40 ? "주의가 필요해요" : "현재 위험도 낮음"}</strong>
+            {measured && <span className="risk-number">{score}<small>/ 100</small></span>}
+          </div>
+          {measured && <div className="risk-meter" role="meter" aria-label="통화 위험도" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
+            {[0, 1, 2, 3].map((segment) => <span key={segment} data-filled={score > segment * 25 || undefined} />)}
+          </div>}
+          <p>{!on ? <>보호를 활성화하면<br />위험 신호를 감지합니다.</> : !measured ? <>대화가 시작되면<br />위험 신호를 실시간으로 살펴봅니다.</> : "통화 내용을 바탕으로 AI가 판단한 위험도예요."}</p>
         </div>
-      )}
+      </div>
 
       {status === "on" && !alert && falsePositive && (
         <div className="why" data-kind="recheck" data-testid="analysis-recheck">
@@ -89,7 +93,6 @@ export function AnalysisPanel({
 
       {action && <ActionCard key={action.eventSeq} action={action} onReply={reply} />}
 
-      {!on && !error && <p className="guard-note">켜면 통화 음성이 분석 서버로 전송돼요. 상대 쪽 설치는 필요 없어요.</p>}
       {error && <p className="error">{error}</p>}
     </section>
   );

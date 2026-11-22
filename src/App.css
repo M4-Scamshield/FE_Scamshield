@@ -32,10 +32,10 @@ body {
   background-size: 32px 32px;
 }
 main { max-width: 440px; margin: 0 auto; padding: 28px 16px 40px; }
-main[data-view="call"] { max-width: 1240px; }
 
 header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
 .shield { color: var(--safe); width: 20px; height: 20px; }
+.brand-logo { display: block; flex: none; width: 32px; height: 32px; object-fit: contain; }
 .brand { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
 .tag { margin-left: auto; font-size: 11px; color: var(--muted); }
 
@@ -57,138 +57,12 @@ input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius
 .lobby .error { margin-top: 14px; }
 .status.inline { margin-top: 14px; text-align: center; }
 
-/* ---------- 통화 화면 뼈대 ---------- */
-.call-layout { --watch: var(--idle); display: grid; gap: 12px; }
-.call-layout[data-watch="listening"] { --watch: var(--safe); }
-.call-layout[data-watch="starting"] { --watch: var(--idle); }
-.call-layout[data-watch="SUSPECT"], .call-layout[data-watch="degraded"] { --watch: var(--caution); }
-.call-layout[data-watch="WARN"] { --watch: var(--danger); }
-.call { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-
-/* 화면 가장자리: 탐지 상태. 꺼져 있으면 아무것도 없다 */
-.watch-frame { position: fixed; inset: 0; z-index: 10; pointer-events: none; opacity: 0; box-shadow: inset 0 0 0 1px var(--watch), inset 0 0 72px -24px var(--watch); transition: opacity 0.4s; }
-[data-watch="listening"] > .watch-frame { opacity: 0.8; animation: breathe 4s ease-in-out infinite; }
-[data-watch="SUSPECT"] > .watch-frame, [data-watch="degraded"] > .watch-frame { opacity: 1; }
-[data-watch="WARN"] > .watch-frame { opacity: 1; box-shadow: inset 0 0 0 2px var(--watch), inset 0 0 120px -20px var(--watch); animation: alarm 1.2s ease-in-out infinite; }
-@keyframes breathe { 50% { opacity: 0.3; } }
-@keyframes alarm { 50% { opacity: 0.55; } }
-
-/* 상태 띠 */
-.watch-strip { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--watch); border-radius: 8px; transition: border-color 0.3s; }
-.watch-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--watch); transition: background 0.3s; }
-[data-watch="listening"] .watch-dot { animation: ping 2s ease-out infinite; }
-[data-watch="WARN"] .watch-dot { animation: ping 0.9s ease-out infinite; }
-@keyframes ping { from { box-shadow: 0 0 0 0 var(--watch); } to { box-shadow: 0 0 0 12px transparent; } }
-.watch-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.watch-text strong { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--watch); }
-[data-watch="off"] .watch-text strong, [data-watch="starting"] .watch-text strong { color: var(--muted); }
-.watch-warn { font-size: 12px; color: var(--caution); }
-.watch-meta { margin-left: auto; text-align: right; min-width: 0; }
-.room { margin: 0; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30vw; }
-.status { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
-.status[data-status="failed"], .status[data-status="room-full"] { color: var(--danger); font-weight: 600; }
-.timer { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.note { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
-
-/* ---------- 참가자 채널 ---------- */
-.people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.person, .empty { display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 60px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
-.empty { background: none; border-style: dashed; color: var(--idle); font-size: 12px; justify-content: center; min-height: 44px; }
-.person { --spk: var(--spk-me); }
-.person[data-color="0"] { --spk: var(--spk-0); }
-.person[data-color="1"] { --spk: var(--spk-1); }
-.person[data-color="2"] { --spk: var(--spk-2); }
-.initial { width: 34px; height: 34px; border-radius: 6px; display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none; color: var(--spk); background: color-mix(in srgb, var(--spk) 14%, transparent); }
-.who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 0 1 148px; }
-.pname { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.me { color: var(--muted); font-weight: 400; }
-.pstate { font-size: 11px; color: var(--muted); min-height: 15px; }
-.person[data-tone="bad"] .pstate { color: var(--danger); }
-.person[data-track="open"] .pstate { color: var(--safe); }
-.person[data-track="retrying"] .pstate, .person[data-track="stopped"] .pstate { color: var(--caution); }
-.person[data-track="rejected"] .pstate { color: var(--danger); }
-.trace { flex: 1; min-width: 0; height: 40px; color: var(--spk); }
-
-/* ---------- 탐지 패널 ---------- */
-.guard { padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
-.guard[data-level="SUSPECT"] { border-color: var(--caution); }
-.guard[data-level="WARN"] { border-color: var(--danger); }
-.guard-head { display: flex; align-items: center; justify-content: space-between; }
-.guard-title { font-weight: 700; font-size: 14px; }
-.switch { padding: 6px 14px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--muted); }
-.switch[aria-checked="true"] { background: var(--safe); border-color: var(--safe); color: #04140d; }
-.switch:disabled { opacity: 0.6; cursor: default; }
-.guard-note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
-.alert { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 6px; background: color-mix(in srgb, var(--caution) 16%, transparent); color: var(--caution); font-size: 14px; }
-.guard[data-level="WARN"] .alert { background: var(--danger); color: #1c0506; }
-.alert span { font: 500 13px var(--mono); }
-.verdict { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-radius: 6px; background: var(--panel-2); font-size: 14px; }
-.verdict-label { font-size: 12px; color: var(--muted); }
-.verdict strong { color: var(--safe); }
-.verdict .verdict-wait { color: var(--muted); font-weight: 500; }
-.verdict-score { margin-left: auto; font: 500 13px var(--mono); color: var(--muted); }
-.action p, .action-msg { margin: 0; font-size: 14px; line-height: 1.55; }
-.action form { display: flex; flex-direction: column; margin-top: 10px; }
-.action .primary { margin-top: 8px; padding: 10px; font-size: 14px; }
-
-.why, .todo { display: flex; flex-direction: column; gap: 4px; }
-.why { padding: 10px 12px; border-radius: 6px; background: var(--panel-2); border-left: 2px solid var(--danger); }
-.why[data-kind="recheck"] { border-left-color: var(--safe); }
-.why-title { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
-.why-text { margin: 0; font-size: 14px; line-height: 1.6; text-wrap: pretty; }
-.why-link { align-self: flex-start; margin-top: 4px; padding: 0; background: none; font-size: 12px; color: var(--danger); text-decoration: underline; text-underline-offset: 3px; }
-.why[data-fresh] { animation: fresh 1.6s ease-out; }
-@keyframes fresh { 0%, 30% { background: color-mix(in srgb, var(--danger) 22%, transparent); } }
-.why-meta { margin-left: 8px; font-weight: 400; color: var(--idle); }
-.transcript-lines li.flash { animation: flash 1.4s ease-out; }
-@keyframes flash { 0%, 40% { outline: 2px solid var(--danger); outline-offset: -2px; } 100% { outline: 2px solid transparent; outline-offset: -2px; } }
-
-/* ---------- 조작 버튼 ---------- */
-.controls { display: flex; justify-content: center; gap: 12px; padding-top: 4px; }
-.round { background: none; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); width: 72px; padding: 0; }
-.round svg { width: 48px; height: 48px; padding: 13px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); transition: background 0.15s, transform 0.1s; }
-.round:hover svg { filter: brightness(1.25); }
-.round:active svg { transform: scale(0.95); }
-.round[data-active="true"] svg { background: var(--text); color: var(--bg); }
-.round.hangup svg { background: var(--danger); border-color: var(--danger); color: #1c0506; }
-
-/* ---------- 대화 기록(전사) ---------- */
-.transcript { min-width: 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
-.transcript-title { margin: 0; font-weight: 700; font-size: 14px; }
-.transcript-empty { margin: 0; padding: 32px 0; text-align: center; font-size: 13px; color: var(--muted); }
-.transcript-lines { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-.transcript-lines li { --spk: var(--idle); flex: none; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 4px; background: var(--panel-2); box-shadow: inset 2px 0 0 var(--spk); font-size: 14px; line-height: 1.55; text-wrap: pretty; }
-.transcript-lines li[data-speaker="me"] { --spk: var(--spk-me); }
-.transcript-lines li[data-color="0"] { --spk: var(--spk-0); }
-.transcript-lines li[data-color="1"] { --spk: var(--spk-1); }
-.transcript-lines li[data-color="2"] { --spk: var(--spk-2); }
-.transcript-lines .speaker { font-size: 12px; font-weight: 600; color: var(--spk); }
-.transcript-lines .speaker { display: flex; justify-content: space-between; gap: 8px; }
-.judged { font-weight: 500; font-size: 11px; color: var(--idle); }
-.judged[data-done] { color: var(--safe); }
-.transcript-lines li[data-evidence] { background: color-mix(in srgb, var(--danger) 16%, transparent); box-shadow: inset 2px 0 0 var(--danger); }
-.transcript-lines li[data-evidence] .speaker { color: var(--danger); }
-/* 새 발화가 분석 서버에 접수되면 한 번 훑고 지나간다 */
-.transcript-lines li::after { content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-100%); background: linear-gradient(90deg, transparent 60%, color-mix(in srgb, var(--safe) 30%, transparent)); animation: scan 0.9s ease-out; }
-@keyframes scan { to { transform: translateX(100%); } }
-
 /* ---------- 로그 ---------- */
 .logbox { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 summary { padding: 8px 12px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .log { margin: 0; padding: 0 12px 10px; list-style: none; max-height: 160px; overflow-y: auto; font: 11px/1.8 var(--mono); color: var(--muted); }
 .hint { margin: 12px 0 0; color: var(--idle); font-size: 12px; line-height: 1.5; text-align: center; }
 
-/* 넓은 화면: 한 화면에 담고 왼쪽은 통화, 오른쪽은 기록. 긴 내용은 각 칸 안에서 스크롤한다 */
-@media (min-width: 900px) {
-  main[data-view="call"] { display: flex; flex-direction: column; height: 100dvh; padding-bottom: 12px; }
-  .stage { flex: 1; min-height: 0; }
-  .call-layout { height: 100%; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .watch-strip { grid-column: 1 / -1; }
-  .call { overflow-y: auto; }
-  .transcript-lines { flex: 1; min-height: 0; max-height: none; }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .watch-frame, .watch-dot, .why[data-fresh] { animation: none !important; }
-  .transcript-lines li::after { display: none; }
-}
+.status.inline { color: var(--muted); font-size: 12px; }
+.status.inline[data-status="room-full"] { color: var(--danger); }
