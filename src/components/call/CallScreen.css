@@ -296,6 +296,29 @@ main[data-view="call"] .log { max-height: 100px; }
 .reason-history-list { display: flex; flex-direction: column; gap: 18px; list-style: none; margin: 0; padding: 0 0 8px; }
 .why-text { margin: 0; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; font-weight: var(--weight-regular); }
 .why-link { align-self: flex-start; padding: 4px 0; background: none; color: #a14f2f; font-size: var(--text-small); text-decoration: underline; text-underline-offset: 3px; font-weight: var(--weight-medium); }
+/* 위험 수법별 카드: 점수 몫이 무게(굵기·색)를 정한다. 펼치면 그 수법의 근거·대응·근거 발화만 보인다 */
+.why.tactics { gap: 4px; padding-left: 0; border-left: 0; }
+.tactic-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.tactic { --tactic: #9a8b7f; border-top: 1px solid #ece2da; }
+.tactic:last-child { border-bottom: 1px solid #ece2da; }
+.tactic[data-weight="high"] { --tactic: #b94b2a; }
+.tactic[data-weight="mid"] { --tactic: #c18a39; }
+.tactic-head { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; grid-template-areas: "name points chevron" "share share share"; align-items: center; gap: 6px 8px; width: 100%; padding: 10px 2px 9px 0; background: none; color: inherit; text-align: left; }
+.tactic-head:hover .tactic-name { color: #3d4a44; }
+.tactic-name { grid-area: name; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: #4f5c56; font-size: var(--text-small); font-weight: var(--weight-semibold); line-height: 1.5; word-break: keep-all; }
+.tactic[data-weight="low"] .tactic-name { font-weight: var(--weight-medium); }
+.tactic-new { padding: 1px 6px; border-radius: 3px; background: #f7e7df; color: #a23b24; font-size: .6875rem; font-style: normal; font-weight: var(--weight-medium); line-height: 1.5; }
+.tactic-points { grid-area: points; color: var(--tactic); font-size: var(--text-small); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.tactic-share { grid-area: share; height: 3px; border-radius: 2px; background: #efe7e1; overflow: hidden; }
+.tactic-share i { display: block; height: 100%; background: var(--tactic); }
+.tactic-chevron { grid-area: chevron; width: 16px; height: 16px; color: #8a9087; transition: transform .2s ease; }
+.tactic[data-open] .tactic-chevron { transform: rotate(180deg); }
+.tactic-body-inner { display: flex; flex-direction: column; gap: 6px; padding: 2px 0 12px 10px; border-left: 2px solid var(--tactic); animation: tactic-open .22s ease-out; }
+.tactic-reason { margin: 0; font-size: var(--text-small); line-height: 1.65; overflow-wrap: anywhere; color: #2f3a35; }
+.tactic-advice { display: flex; gap: 8px; margin: 0; font-size: .8125rem; line-height: 1.6; color: #5e6b65; overflow-wrap: anywhere; }
+.tactic-advice span { flex: none; color: #396c59; font-weight: var(--weight-semibold); }
+.tactic-body-inner .why-link { font-size: .75rem; }
+@keyframes tactic-open { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 .action { padding: 16px 0 0; border-top: 1px solid #ceded4; }
 .action p, .action-msg { margin: 0; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; }
 .action form { display: flex; flex-direction: column; margin-top: 10px; }
@@ -411,6 +434,8 @@ main[data-view="call"] .log { max-height: 100px; }
   .analysis-guardian * { animation: none !important; }
   .person[data-speaking="true"]:not([data-evidence-active])::after { transition: none; opacity: 1; box-shadow: inset 0 0 8px #59efad66; }
   .transcript-lines li.flash { animation: none; }
+  .tactic-body-inner { animation: none; }
+  .tactic-chevron { transition: none; }
   .speaker-warning-highlight { animation: none; }
   .speaker-warning-guide, .guardian-point, .guardian-click { animation: none; }
 }
