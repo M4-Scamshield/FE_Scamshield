@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
+import type { TacticFinding, useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
 
@@ -37,6 +37,20 @@ export function AnalysisPanel({
   const alertReason = alert?.reason || (judged.action === "WARN" ? judged.reason : null);
   // 지난 경고: 최신 경고 아래에 최근 것부터 쌓는다 (근거가 없는 갱신은 뺀다)
   const pastWarnings = warnings.slice(0, -1).filter((w) => w.reason).reverse();
+  // 위험 수법: 가장 최근에 잡힌 것을 맨 위에. 처음 본 시각은 그 수법이 처음 실린 경고를 받은 시각
+  const findings = [...(alert?.findings ?? [])].reverse();
+  const firstSeen = new Map<string, number | undefined>();
+  for (const w of warnings) for (const f of w.findings ?? []) if (!firstSeen.has(f.code)) firstSeen.set(f.code, w.receivedAt);
+  const previousCodes = new Set((warnings.at(-2)?.findings ?? []).map((f) => f.code));
+  const freshCodes = new Set(warnings.length > 1 ? findings.map((f) => f.code).filter((code) => !previousCodes.has(code)) : []);
+  // 직접 펼치거나 접은 것만 기억한다. 손대지 않은 카드는 가장 최근 수법만 펼친다
+  const [openTactics, setOpenTactics] = useState<Record<string, boolean>>({});
+  const showEvidence = (seqs: number[]) => {
+    if (seqs.length === 0) return;
+    showLines(seqs);
+    const line = lines.find((line) => line.seq === seqs[0]);
+    if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
+  };
   const [view, setView] = useState<"risk" | "findings">("risk");
   const [seenFindings, setSeenFindings] = useState<string | null>(null);
   const findingsKey = hasFindings ? JSON.stringify([alert?.eventSeq, action?.eventSeq, judged.reason]) : null;
@@ -124,16 +138,32 @@ export function AnalysisPanel({
           </div>
         )}
 
-        {alert && (
+        {alert && findings.length > 0 && (
+          <div className="why tactics" data-testid="analysis-reason">
+            <div className="why-heading">
+              <h3 className="why-title">위험 수법 {findings.length}개</h3>
+              {alert.receivedAt && <span className="why-meta">{clock(alert.receivedAt)} 기준</span>}
+            </div>
+            <ul className="tactic-list" data-testid="analysis-tactics">
+              {findings.map((f) => (
+                <TacticItem
+                  key={f.code} finding={f} names={names}
+                  open={openTactics[f.code] ?? f.code === findings[0].code}
+                  fresh={freshCodes.has(f.code)}
+                  seenAt={firstSeen.get(f.code)}
+                  onToggle={() => setOpenTactics((prev) => ({ ...prev, [f.code]: !(prev[f.code] ?? f.code === findings[0].code) }))}
+                  onShowEvidence={() => showEvidence(f.evidenceSeqs)}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {alert && findings.length === 0 && (
           <div className="why" key={alert.eventSeq} data-fresh={warnings.length > 1 || undefined} data-testid="analysis-reason">
             <div className="why-heading"><p className="why-title" title={warnings.length > 1 ? `최근 판단 기준 · ${warnings.length - 1}번 갱신` : undefined}>AI 판단 근거</p>
             {(alert.evidenceSeqs?.length ?? 0) > 0 && (
-              <button className="why-link" type="button" onClick={() => {
-                const seq = alert.evidenceSeqs![0];
-                showLine(seq);
-                const line = lines.find((line) => line.seq === seq);
-                if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
-              }}>
+              <button className="why-link" type="button" onClick={() => showEvidence(alert.evidenceSeqs!)}>
                 근거가 된 말 {alert.evidenceSeqs!.length}개 보기
               </button>
             )}
@@ -174,14 +204,63 @@ function PageArrow({ previous = false }: { previous?: boolean }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" data-previous={previous || undefined}><path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-/** 대화 기록에서 그 발화로 스크롤하고 잠깐 깜빡인다 */
-function showLine(seq: number) {
-  const el = document.getElementById(`line-${seq}`);
-  if (!el) return;
-  el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-  el.classList.remove("flash");
-  void el.offsetWidth;
-  el.classList.add("flash");
+/** 대화 기록에서 첫 근거 발화로 스크롤하고, 근거 발화를 모두 잠깐 깜빡인다 */
+function showLines(seqs: number[]) {
+  const els = seqs.map((seq) => document.getElementById(`line-${seq}`)).filter((el): el is HTMLElement => !!el);
+  if (els.length === 0) return;
+  els[0].scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  for (const el of els) {
+    el.classList.remove("flash");
+    void el.offsetWidth;
+    el.classList.add("flash");
+  }
+}
+
+/** 위험 수법 한 줄. 누르면 판단 근거·대응 안내·근거가 된 말 버튼이 펼쳐진다 */
+function TacticItem({
+  finding,
+  names,
+  open,
+  fresh,
+  seenAt,
+  onToggle,
+  onShowEvidence,
+}: {
+  finding: TacticFinding;
+  names: Map<string, string>;
+  open: boolean;
+  fresh: boolean;
+  seenAt?: number;
+  onToggle: () => void;
+  onShowEvidence: () => void;
+}) {
+  const bodyId = `tactic-${finding.code}`;
+  // 점수 몫으로 무게를 나눈다: 40 = 돈·정보·이동 요구, 25 = 고립, 10 = 분위기 조성
+  const weight = finding.points >= 40 ? "high" : finding.points >= 20 ? "mid" : "low";
+  return (
+    <li className="tactic" data-open={open || undefined} data-weight={weight} data-testid={`tactic-${finding.code}`}>
+      <button type="button" className="tactic-head" aria-expanded={open} aria-controls={bodyId} onClick={onToggle}>
+        <span className="tactic-name">{finding.name}{fresh && <em className="tactic-new">새로 감지</em>}</span>
+        <span className="tactic-points" aria-label={`위험도에 ${finding.points}점 더함`}>+{finding.points}</span>
+        <span className="tactic-share" aria-hidden="true"><i style={{ width: `${Math.min(100, finding.points)}%` }} /></span>
+        <TacticChevron />
+      </button>
+      <div className="tactic-body" id={bodyId} hidden={!open}>
+        <div className="tactic-body-inner">
+          {seenAt && <span className="why-meta">{clock(seenAt)} 감지</span>}
+          <p className="tactic-reason">{finding.reason ? withName(finding.reason, names) : "판단 근거가 아직 없어요."}</p>
+          {finding.message && <p className="tactic-advice"><span>대응</span>{withName(finding.message, names)}</p>}
+          {finding.evidenceSeqs.length > 0 && (
+            <button className="why-link" type="button" onClick={onShowEvidence}>근거가 된 말 {finding.evidenceSeqs.length}개 보기</button>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function TacticChevron() {
+  return <svg className="tactic-chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 function ActionCard({
