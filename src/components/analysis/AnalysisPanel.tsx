@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from "react";
-import type { TacticFinding, useAnalysis } from "../../hooks/analysis/useAnalysis";
+import { useState, type FormEvent, type ReactNode } from "react";
+import type { AnalysisAlert, TacticFinding, TranscriptLine, useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
+
+const receiptTimeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 
 /** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
 /** AI 는 화자를 참가자 id(p1, p2 …)로 본다 → 근거 속 id 를 참가자 이름으로 바꿔 보여 준다 */
@@ -9,19 +11,16 @@ function withName(reason: string, names: Map<string, string>) {
   return reason.replace(/\[?\b(p\d+)\b\]?/g, (whole, id: string) => names.get(id) ?? whole);
 }
 
-/** 경고를 받은 시각 (예: 14:02:05) */
-function clock(ms?: number) {
-  return ms ? new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "";
-}
-
 export function AnalysisPanel({
   analysis,
   names,
   onSelectSpeaker,
+  statusIndicator,
 }: {
   analysis: ReturnType<typeof useAnalysis>;
   names: Map<string, string>;
   onSelectSpeaker: (trackId: string) => void;
+  statusIndicator: ReactNode;
 }) {
   const { status, error, alert, warnings, action, judged, lines, tracks, streamDown, enable, disable, reply } = analysis;
   const on = status === "on" || status === "starting";
@@ -35,9 +34,7 @@ export function AnalysisPanel({
   const riskBand = alert?.level === "WARN" ? "danger" : alert || (measured && score >= 40) ? "caution" : measured ? "safe" : "idle";
   const hasFindings = !!alert || (status === "on" && falsePositive) || !!action;
   const alertReason = alert?.reason || (judged.action === "WARN" ? judged.reason : null);
-  // 지난 경고: 최신 경고 아래에 최근 것부터 쌓는다 (근거가 없는 갱신은 뺀다)
-  const pastWarnings = warnings.slice(0, -1).filter((w) => w.reason).reverse();
-  // 위험 수법: 가장 최근에 잡힌 것을 맨 위에. 처음 본 시각은 그 수법이 처음 실린 경고를 받은 시각
+  const previousWarnings = warnings.filter((warning) => warning.eventSeq !== alert?.eventSeq).reverse();
   const findings = [...(alert?.findings ?? [])].reverse();
   const firstSeen = new Map<string, number | undefined>();
   for (const w of warnings) for (const f of w.findings ?? []) if (!firstSeen.has(f.code)) firstSeen.set(f.code, w.receivedAt);
@@ -88,7 +85,10 @@ export function AnalysisPanel({
     <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis" data-view={view}>
       <div className="analysis-navigation">
         <h2 className="panel-section-title" id="analysis-view-title">{view === "risk" ? "통화 위험도" : "분석 결과·대응"}</h2>
-        {view === "findings" && pageLink}
+        <div className="analysis-navigation-actions">
+          {statusIndicator}
+          {view === "findings" && pageLink}
+        </div>
       </div>
 
       <div id="analysis-risk" className="guard-page guard-risk" hidden={view !== "risk"} role="region" aria-label="위험도 상세" tabIndex={0}>
@@ -142,8 +142,8 @@ export function AnalysisPanel({
           <div className="why tactics" data-testid="analysis-reason">
             <div className="why-heading">
               <h3 className="why-title">위험 수법 {findings.length}개</h3>
-              {alert.receivedAt && <span className="why-meta">{clock(alert.receivedAt)} 기준</span>}
             </div>
+            <ResultTime receivedAt={alert.receivedAt} latest />
             <ul className="tactic-list" data-testid="analysis-tactics">
               {findings.map((f) => (
                 <TacticItem
@@ -159,29 +159,7 @@ export function AnalysisPanel({
           </div>
         )}
 
-        {alert && findings.length === 0 && (
-          <div className="why" key={alert.eventSeq} data-fresh={warnings.length > 1 || undefined} data-testid="analysis-reason">
-            <div className="why-heading"><p className="why-title" title={warnings.length > 1 ? `최근 판단 기준 · ${warnings.length - 1}번 갱신` : undefined}>AI 판단 근거</p>
-            {(alert.evidenceSeqs?.length ?? 0) > 0 && (
-              <button className="why-link" type="button" onClick={() => showEvidence(alert.evidenceSeqs!)}>
-                근거가 된 말 {alert.evidenceSeqs!.length}개 보기
-              </button>
-            )}
-            </div>
-            {alert.receivedAt && <span className="why-meta">{clock(alert.receivedAt)} · 위험도 {alert.score}</span>}
-            <p className="why-text">{alertReason ? withName(alertReason, names) : "상세 판단 근거를 기다리고 있어요."}</p>
-            {pastWarnings.length > 0 && (
-              <ol className="why-history" aria-label="이전 판단 근거" data-testid="analysis-reason-history">
-                {pastWarnings.map((w) => (
-                  <li key={w.eventSeq}>
-                    <span className="why-meta">{clock(w.receivedAt)} · 위험도 {w.score}</span>
-                    <p className="why-history-text">{withName(w.reason!, names)}</p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        )}
+        {alert && findings.length === 0 && <ReasonCard warning={alert} reason={alertReason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} latest />}
 
         {hasFindings && <section className="analysis-response" data-testid="analysis-response" aria-label="대응 방안">
           <h3 className="why-title">대응 방안</h3>
@@ -194,10 +172,52 @@ export function AnalysisPanel({
         {!alert?.message && !action && <p className="guard-note">추가 대응 안내가 있으면 여기에 표시됩니다.</p>}
         </section>}
 
+        {previousWarnings.length > 0 && <section className="reason-history" aria-label="이전 판단 근거">
+          <h3 className="why-title">이전 판단 근거 <span>{previousWarnings.length}건</span></h3>
+          <ol className="reason-history-list">
+            {previousWarnings.map((warning) => <li key={warning.eventSeq}>
+              <ReasonCard warning={warning} reason={warning.reason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} />
+            </li>)}
+          </ol>
+        </section>}
+
         {error && <p className="error">{error}</p>}
       </div>
     </section>
   );
+}
+
+function ReasonCard({ warning, reason, names, lines, onSelectSpeaker, latest = false }: {
+  warning: AnalysisAlert;
+  reason: string | null | undefined;
+  names: Map<string, string>;
+  lines: TranscriptLine[];
+  onSelectSpeaker: (trackId: string) => void;
+  latest?: boolean;
+}) {
+  const evidenceSeqs = warning.evidenceSeqs ?? [...new Set((warning.findings ?? []).flatMap((finding) => finding.evidenceSeqs))];
+  const summary = reason || (warning.findings ?? []).filter((finding) => finding.reason).map((finding) => `${finding.name}: ${finding.reason}`).join("\n");
+  return <article className="why" data-latest={latest || undefined} data-testid={latest ? "analysis-reason" : "analysis-history-reason"}>
+    <div className="why-heading">
+      <p className="why-title">{latest ? "AI 판단 근거" : `${warning.level === "WARN" ? "위험 감지" : "주의 감지"} · 위험도 ${warning.score}`}</p>
+      {evidenceSeqs.length > 0 && <button className="why-link" type="button" onClick={() => {
+        showLines(evidenceSeqs);
+        const line = lines.find((line) => line.seq === evidenceSeqs[0]);
+        if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
+      }}>근거가 된 말 {evidenceSeqs.length}개 보기</button>}
+    </div>
+    <ResultTime receivedAt={warning.receivedAt} latest={latest} />
+    <p className="why-text">{summary ? withName(summary, names) : "상세 판단 근거를 기다리고 있어요."}</p>
+  </article>;
+}
+
+function ResultTime({ receivedAt, latest = false }: { receivedAt: number; latest?: boolean }) {
+  const received = new Date(receivedAt);
+  return <div className="reason-received">
+    {latest && <span className="reason-latest">최신</span>}
+    <time dateTime={received.toISOString()} title={`분석 결과: ${received.toLocaleString("ko-KR")}`}>{receiptTimeFormat.format(received)}</time>
+    <span>분석 결과</span>
+  </div>;
 }
 
 function PageArrow({ previous = false }: { previous?: boolean }) {
@@ -247,7 +267,7 @@ function TacticItem({
       </button>
       <div className="tactic-body" id={bodyId} hidden={!open}>
         <div className="tactic-body-inner">
-          {seenAt && <span className="why-meta">{clock(seenAt)} 감지</span>}
+          {seenAt !== undefined && <ResultTime receivedAt={seenAt} />}
           <p className="tactic-reason">{finding.reason ? withName(finding.reason, names) : "판단 근거가 아직 없어요."}</p>
           {finding.message && <p className="tactic-advice"><span>대응</span>{withName(finding.message, names)}</p>}
           {finding.evidenceSeqs.length > 0 && (

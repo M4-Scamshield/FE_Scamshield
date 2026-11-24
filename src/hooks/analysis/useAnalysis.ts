@@ -38,6 +38,8 @@ export interface TacticFinding {
 /** 위험도 알림. 통화 동안 올라가기만 한다 (SUSPECT → WARN) */
 export interface AnalysisAlert {
   eventSeq: number;
+  /** 브라우저에서 이 경고를 처음 수신한 시각 (밀리초). 서버 판단 시각과는 다르다. */
+  receivedAt: number;
   level: "SUSPECT" | "WARN";
   score: number;
   message?: string;
@@ -47,8 +49,6 @@ export interface AnalysisAlert {
   evidenceSeqs?: number[];
   /** 지금까지 위험으로 판정된 수법 전부. 예전 서버는 보내지 않는다 */
   findings?: TacticFinding[];
-  /** 브라우저가 이 경고를 받은 시각(ms). 서버는 시각을 보내지 않는다 */
-  receivedAt?: number;
 }
 
 /**
@@ -152,23 +152,17 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
         const d = fresh(e as MessageEvent);
         if (d) setLines((prev) => [...prev, d]);
       });
-      source.addEventListener("alert", (e) => {
+      const receiveWarning = (e: Event) => {
         const d = fresh(e as MessageEvent);
         if (d) {
-          d.receivedAt = Date.now();
-          setAlert(d);
-          setWarnings((prev) => [...prev, d]);
+          const warning: AnalysisAlert = { ...d, receivedAt: Date.now() };
+          setAlert(warning);
+          setWarnings((prev) => [...prev, warning]);
         }
-      });
+      };
+      source.addEventListener("alert", receiveWarning);
       // 단계는 그대로인데 AI 가 새 발화에서 다시 피싱으로 판정: 최신 근거·안내로 바꾸고 이력에 쌓는다
-      source.addEventListener("warning", (e) => {
-        const d = fresh(e as MessageEvent);
-        if (d) {
-          d.receivedAt = Date.now();
-          setAlert(d);
-          setWarnings((prev) => [...prev, d]);
-        }
-      });
+      source.addEventListener("warning", receiveWarning);
       source.addEventListener("action", (e) => {
         const d = fresh(e as MessageEvent);
         if (d) setAction(d);

@@ -7,7 +7,6 @@ import { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { useSpeaking } from "../../hooks/call/useSpeaking";
-import { BrandLogo } from "../common/BrandLogo";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
 import { SoundSettings } from "./SoundSettings";
 import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
@@ -247,16 +246,14 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
       </section>
 
       <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
-        <div className="safety-brand">
-          <span className="safety-brand-name"><BrandLogo /><span className="safety-brand-label"><strong>ScamShield</strong><span>실시간 통화 보호</span></span></span>
-          <div className="watch-status" role="status" data-testid="watch">
-            <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
-          </div>
-        </div>
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
         <div className="safety-content">
           <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
-            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} />
+            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker}
+              statusIndicator={<div className="watch-status" role="status" data-testid="watch">
+                <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
+              </div>}
+            />
           </div>
           <TranscriptPanel
             selfId={joined?.self.id}

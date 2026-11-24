@@ -166,12 +166,6 @@ main[data-view="call"] .log { max-height: 100px; }
 /* 독립적으로 스크롤하는 밝은 보호 패널 */
 .safety-sidebar { --safe: #197c65; --caution: #ad660d; --danger: #bf4428; --text: #27383d; --muted: #73838a; --line: #dce4e3; --panel: #fff; --panel-2: #f0f5f3; --bg: #f6f8f7; --spk-me: #756295; --spk-0: #346f82; --spk-1: #417554; --spk-2: #95614e; color-scheme: light; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--text); border-left: 1px solid #c9d8d2; }
 .safety-sidebar[hidden] { display: none; }
-.safety-brand { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 88px; padding: 20px 24px; border-top: 3px solid #83b6a5; border-bottom: 1px solid #d9e3de; background: #edf3f0; color: #24434b; }
-.safety-brand-name { display: inline-flex; align-items: center; gap: 10px; letter-spacing: -.03em; white-space: nowrap; }
-.safety-brand-name .brand-logo { width: 28px; height: 28px; }
-.safety-brand-label { display: flex; flex-direction: column; gap: 1px; }
-.safety-brand-label strong { font-size: var(--text-heading); font-weight: var(--weight-semibold); line-height: 1.4; }
-.safety-brand-label > span { color: #6c8078; font-size: .75rem; font-weight: var(--weight-medium); letter-spacing: .015em; }
 .watch-status { display: flex; align-items: center; gap: 6px; color: var(--watch); white-space: nowrap; }
 .watch-status strong { font-size: .75rem; font-weight: var(--weight-medium); }
 .watch-dot { width: 6px; height: 6px; flex: none; background: var(--watch); border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--watch) 10%, transparent); }
@@ -182,6 +176,7 @@ main[data-view="call"] .log { max-height: 100px; }
 .analysis-scroll:focus-visible, .guard-page:focus-visible, .transcript-lines:focus-visible { outline: 2px solid #227a67; outline-offset: -2px; }
 .guard { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .analysis-navigation { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.analysis-navigation-actions { flex: none; display: flex; align-items: center; gap: 8px; }
 .analysis-navigation .panel-section-title { padding: 0; border: 0; }
 .analysis-navigation { min-height: 32px; }
 .analysis-state-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -202,7 +197,7 @@ main[data-view="call"] .log { max-height: 100px; }
 .guard-risk .risk-summary > p { margin-top: 10px; font-size: .75rem; }
 .guard-findings { gap: 12px; }
 .guard-findings .alert { padding-block: 6px; font-size: var(--text-small); }
-.why-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.why-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
 .why-heading .why-link { flex: none; font-size: .75rem; white-space: nowrap; }
 .guard-findings .why-text, .analysis-response .action p, .analysis-response .action-msg { font-size: var(--text-small); }
 .analysis-response { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid #d8e2dc; }
@@ -293,9 +288,13 @@ main[data-view="call"] .log { max-height: 100px; }
 .why[data-kind="recheck"] { border-color: #81b39c; }
 .why-title { margin: 0; font-size: var(--text-small); font-weight: var(--weight-semibold); color: #5e6b65; line-height: 1.6; }
 .why-meta { display: block; font-size: var(--text-small); font-weight: var(--weight-regular); color: #8a9087; }
+.reason-received { display: flex; align-items: center; gap: 5px; color: #738179; font-size: .75rem; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.reason-latest { margin-right: 2px; padding: 0 5px; border-radius: 4px; background: #f8e9df; color: #a14f2f; font-weight: var(--weight-medium); }
+.reason-history { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; padding-top: 12px; border-top: 1px solid #d8e2dc; }
+.reason-history > h3 { display: flex; align-items: center; justify-content: space-between; }
+.reason-history > h3 > span { font-size: .75rem; font-weight: var(--weight-regular); color: #738179; }
+.reason-history-list { display: flex; flex-direction: column; gap: 18px; list-style: none; margin: 0; padding: 0 0 8px; }
 .why-text { margin: 0; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; font-weight: var(--weight-regular); }
-.why-history { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 0; padding: 10px 0 0; border-top: 1px dashed #e2cdbf; list-style: none; }
-.why-history-text { margin: 2px 0 0; font-size: var(--text-small); line-height: 1.6; overflow-wrap: anywhere; color: #7a837e; }
 .why-link { align-self: flex-start; padding: 4px 0; background: none; color: #a14f2f; font-size: var(--text-small); text-decoration: underline; text-underline-offset: 3px; font-weight: var(--weight-medium); }
 /* 위험 수법별 카드: 점수 몫이 무게(굵기·색)를 정한다. 펼치면 그 수법의 근거·대응·근거 발화만 보인다 */
 .why.tactics { gap: 4px; padding-left: 0; border-left: 0; }
@@ -408,7 +407,6 @@ main[data-view="call"] .log { max-height: 100px; }
   .guard-page { flex: none; max-height: min(60dvh, 480px); }
   .transcript { flex: none; }
   .transcript-lines { flex: none; max-height: min(65dvh, 560px); }
-  .safety-brand { min-height: 76px; }
 }
 @media (max-width: 600px) {
   .meeting-toolbar { grid-template-columns: 1fr auto; }
