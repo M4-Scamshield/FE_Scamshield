@@ -294,6 +294,8 @@ main[data-view="call"] .log { max-height: 100px; }
 .why-title { margin: 0; font-size: var(--text-small); font-weight: var(--weight-semibold); color: #5e6b65; line-height: 1.6; }
 .why-meta { display: block; font-size: var(--text-small); font-weight: var(--weight-regular); color: #8a9087; }
 .why-text { margin: 0; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; font-weight: var(--weight-regular); }
+.why-history { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 0; padding: 10px 0 0; border-top: 1px dashed #e2cdbf; list-style: none; }
+.why-history-text { margin: 2px 0 0; font-size: var(--text-small); line-height: 1.6; overflow-wrap: anywhere; color: #7a837e; }
 .why-link { align-self: flex-start; padding: 4px 0; background: none; color: #a14f2f; font-size: var(--text-small); text-decoration: underline; text-underline-offset: 3px; font-weight: var(--weight-medium); }
 .action { padding: 16px 0 0; border-top: 1px solid #ceded4; }
 .action p, .action-msg { margin: 0; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; }

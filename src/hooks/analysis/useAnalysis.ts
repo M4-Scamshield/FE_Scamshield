@@ -31,6 +31,8 @@ export interface AnalysisAlert {
   reason?: string | null;
   /** 이 경고의 근거가 된 발화 seq. 전사 화면에서 강조한다 */
   evidenceSeqs?: number[];
+  /** 브라우저가 이 경고를 받은 시각(ms). 서버는 시각을 보내지 않는다 */
+  receivedAt?: number;
 }
 
 /**
@@ -137,6 +139,7 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
       source.addEventListener("alert", (e) => {
         const d = fresh(e as MessageEvent);
         if (d) {
+          d.receivedAt = Date.now();
           setAlert(d);
           setWarnings((prev) => [...prev, d]);
         }
@@ -145,6 +148,7 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
       source.addEventListener("warning", (e) => {
         const d = fresh(e as MessageEvent);
         if (d) {
+          d.receivedAt = Date.now();
           setAlert(d);
           setWarnings((prev) => [...prev, d]);
         }
