@@ -206,6 +206,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                         onSoundMenu={setSoundMenuTarget}
                         evidencePulse={speakerHighlight?.trackId === p.info.id ? speakerHighlight.pulse : undefined}
                         video={p.video}
+                        muted={p.muted}
                       />
                     ))}
                   </AnimatePresence>
@@ -332,6 +333,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       data-evidence-active={evidencePulse !== undefined || undefined}
       data-testid={`person-${info.id}`}
       data-video={video ? "on" : undefined}
+      data-muted={muted || undefined}
       aria-hidden={!present || undefined}
       tabIndex={present ? 0 : -1}
       aria-label={`${info.name}${me ? " (나)" : ""} 사운드 설정`}

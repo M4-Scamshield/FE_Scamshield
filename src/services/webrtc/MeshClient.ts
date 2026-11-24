@@ -38,6 +38,8 @@ export interface PeerView {
   stream: MediaStream | null;
   /** 상대 카메라 영상. 꺼져 있으면 null */
   video: MediaStream | null;
+  /** 상대가 자기 마이크를 음소거했는지 */
+  muted: boolean;
 }
 
 export interface JoinedInfo {
@@ -69,6 +71,7 @@ interface Peer {
   /** 상대 영상 트랙 (한 번 받으면 끄고 켜도 같은 트랙이 다시 흐른다) */
   remoteVideo: MediaStream | null;
   remoteCamera: boolean;
+  remoteMuted: boolean;
   /** 이 상대에게 내 영상을 싣는 sender. 카메라를 처음 켤 때 만든다 */
   videoSender: RTCRtpSender | null;
   restarts: number;
@@ -212,6 +215,8 @@ export class MeshClient {
     this.muted = muted;
     this.captureStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
     this.localStream?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+    // 트랙을 꺼도 상대는 무음과 구분할 수 없어서 따로 알린다
+    for (const id of this.peers.keys()) this.send(id, { muted });
   }
 
   setMicrophoneVolume(volume: number): void {
@@ -291,6 +296,7 @@ export class MeshClient {
       remote: null,
       remoteVideo: null,
       remoteCamera: false,
+      remoteMuted: false,
       videoSender: null,
       restarts: 0,
       restartTimer: null,
@@ -303,6 +309,7 @@ export class MeshClient {
       this.attachCamera(peer);
       this.send(info.id, { camera: true });
     }
+    if (this.muted) this.send(info.id, { muted: true });
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) this.send(info.id, { candidate: candidate.toJSON() });
@@ -373,6 +380,12 @@ export class MeshClient {
           this.emitPeers();
           return;
         }
+        if (data.muted !== undefined) {
+          peer.remoteMuted = data.muted;
+          this.log(`${peer.info.name} 음소거 ${data.muted ? "켬" : "끔"}`);
+          this.emitPeers();
+          return;
+        }
         if (data.description) {
           const desc = data.description;
           const ready = !peer.makingOffer && (pc.signalingState === "stable" || peer.settingAnswer);
@@ -417,6 +430,7 @@ export class MeshClient {
       state: p.pc.connectionState,
       stream: p.remote,
       video: p.remoteCamera ? p.remoteVideo : null,
+      muted: p.remoteMuted,
     }));
     this.events.onPeers(list);
     this.events.onStatus(overallStatus(list));
