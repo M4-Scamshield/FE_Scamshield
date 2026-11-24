@@ -21,6 +21,20 @@ export interface Judged {
 
 const NOT_JUDGED: Judged = { analyzedTo: 0, score: null, action: null, reason: null };
 
+/**
+ * AI 가 위험으로 판정한 사기 수법 하나 (예: F1 자산 넘기기).
+ * 수법마다 판정 근거·대응 안내·근거가 된 발화가 따로 있다. 서버는 먼저 잡힌 순서로 보낸다
+ */
+export interface TacticFinding {
+  code: string;
+  name: string;
+  /** 이 수법이 위험도에 더한 점수 */
+  points: number;
+  reason?: string | null;
+  message?: string | null;
+  evidenceSeqs: number[];
+}
+
 /** 위험도 알림. 통화 동안 올라가기만 한다 (SUSPECT → WARN) */
 export interface AnalysisAlert {
   eventSeq: number;
@@ -31,6 +45,8 @@ export interface AnalysisAlert {
   reason?: string | null;
   /** 이 경고의 근거가 된 발화 seq. 전사 화면에서 강조한다 */
   evidenceSeqs?: number[];
+  /** 지금까지 위험으로 판정된 수법 전부. 예전 서버는 보내지 않는다 */
+  findings?: TacticFinding[];
   /** 브라우저가 이 경고를 받은 시각(ms). 서버는 시각을 보내지 않는다 */
   receivedAt?: number;
 }

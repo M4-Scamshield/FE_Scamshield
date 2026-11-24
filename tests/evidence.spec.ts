@@ -111,6 +111,56 @@ test("updated warnings stack earlier reasons below the latest one", async ({ pag
   await expect(history.first()).toContainText("안전계좌로 이체하도록 유도했어요.");
 });
 
+test("each risky tactic opens its own reason, advice and evidence lines", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await join(page, "나");
+  await detect(page);
+  const f6 = { code: "F6", name: "권위·절차 연출", points: 10, reason: "서울중앙지검이라며 수사기관을 내세웠어요.", message: "검찰은 전화로 수사하지 않습니다.", evidenceSeqs: [1] };
+  const f1 = { code: "F1", name: "자산 넘기기", points: 40, reason: "안전계좌로 이체하라고 요구했어요.", message: "송금하지 말고 전화를 끊으세요.", evidenceSeqs: [2, 3] };
+  await page.evaluate(([a, b]) => {
+    const source = (window as any).__testAnalysisEvents;
+    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({ eventSeq: 7, level: "WARN", score: 10, evidenceSeqs: [1], findings: [a] }) }));
+    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({ eventSeq: 8, level: "WARN", score: 50, evidenceSeqs: [1, 2, 3], findings: [a, b] }) }));
+  }, [f6, f1]);
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  const reason = page.getByTestId("analysis-reason");
+  await expect(reason.locator(".why-title")).toHaveText("위험 수법 2개");
+  const items = page.getByTestId("analysis-tactics").locator("> li");
+  await expect(items).toHaveCount(2);
+  // 가장 최근에 잡힌 수법이 위, 혼자 펼쳐져 있다
+  const newest = page.getByTestId("tactic-F1");
+  const older = page.getByTestId("tactic-F6");
+  await expect(items.first()).toHaveAttribute("data-testid", "tactic-F1");
+  await expect(newest.getByRole("button", { name: /자산 넘기기/ })).toHaveAttribute("aria-expanded", "true");
+  await expect(newest).toContainText("새로 감지");
+  await expect(newest).toContainText("+40");
+  await expect(newest.locator(".tactic-reason")).toHaveText("안전계좌로 이체하라고 요구했어요.");
+  await expect(newest.locator(".tactic-advice")).toContainText("송금하지 말고 전화를 끊으세요.");
+  await expect(older.getByRole("button", { name: /권위·절차 연출/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(older.locator(".tactic-reason")).toBeHidden();
+  await expect(older).not.toContainText("새로 감지");
+  await page.screenshot({ path: "test-results/tactics-panel.png", fullPage: true, animations: "disabled" });
+
+  // 펼치면 그 수법의 근거만 보이고, 근거 버튼은 그 수법의 발화만 깜빡인다
+  await older.getByRole("button", { name: /권위·절차 연출/ }).click();
+  await expect(older.locator(".tactic-reason")).toHaveText("서울중앙지검이라며 수사기관을 내세웠어요.");
+  await older.getByRole("button", { name: "근거가 된 말 1개 보기" }).click();
+  await expect(page.locator("#line-1")).toHaveClass(/flash/);
+  await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
+  await newest.getByRole("button", { name: "근거가 된 말 2개 보기" }).click();
+  await expect(page.locator("#line-2")).toHaveClass(/flash/);
+  await expect(page.locator("#line-3")).toHaveClass(/flash/);
+  await page.screenshot({ path: "test-results/tactics-panel-open.png", fullPage: true, animations: "disabled" });
+
+  // 접기도 된다. 새 경고가 와도 직접 접은 것은 접힌 채로 둔다
+  await newest.getByRole("button", { name: /자산 넘기기/ }).click();
+  await expect(newest.locator(".tactic-reason")).toBeHidden();
+  await expect(newest.locator(".tactic-chevron")).toHaveCSS("transform", "none");
+  await expect(older.locator(".tactic-chevron")).not.toHaveCSS("transform", "none");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/tactics-panel-390.png", fullPage: true, animations: "disabled" });
+});
+
 test("evidence selects its speaker by ID, repeats the pulse, and clears after playback", async ({ page, context }) => {
   await join(page, "같은 이름");
   const other = await context.newPage();
