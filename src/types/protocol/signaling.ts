@@ -9,8 +9,8 @@ export interface Participant {
   joinedAt: number;
 }
 
-/** camera: 내 카메라를 켰는지 끈 지 상대에게 알린다 (서버는 data 를 그대로 전달한다) */
-export type SignalData = { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; camera?: boolean };
+/** camera·muted: 내 카메라를 켰는지, 마이크를 음소거했는지 상대에게 알린다 (서버는 data 를 그대로 전달한다) */
+export type SignalData = { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; camera?: boolean; muted?: boolean };
 
 /** 브라우저 → 서버 */
 export type ClientMessage =
