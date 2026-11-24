@@ -91,6 +91,26 @@ test("evidence is available even when the warning explanation has not arrived", 
   await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
 });
 
+test("updated warnings stack earlier reasons below the latest one", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await join(page, "나");
+  await detect(page);
+  await page.evaluate(() => {
+    const source = (window as any).__testAnalysisEvents;
+    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+      eventSeq: 7, level: "WARN", score: 95, evidenceSeqs: [2], reason: "인증번호를 불러 달라고 요구했어요.",
+    }) }));
+  });
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  const reason = page.getByTestId("analysis-reason");
+  await expect(reason.locator(".why-text")).toHaveText("인증번호를 불러 달라고 요구했어요.");
+  await expect(reason.locator(".why-meta").first()).toContainText("위험도 95");
+  const history = page.getByTestId("analysis-reason-history").locator("li");
+  await expect(history).toHaveCount(1);
+  await expect(history.first()).toContainText("위험도 90");
+  await expect(history.first()).toContainText("안전계좌로 이체하도록 유도했어요.");
+});
+
 test("evidence selects its speaker by ID, repeats the pulse, and clears after playback", async ({ page, context }) => {
   await join(page, "같은 이름");
   const other = await context.newPage();

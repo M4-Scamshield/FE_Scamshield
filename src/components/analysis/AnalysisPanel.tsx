@@ -9,6 +9,11 @@ function withName(reason: string, names: Map<string, string>) {
   return reason.replace(/\[?\b(p\d+)\b\]?/g, (whole, id: string) => names.get(id) ?? whole);
 }
 
+/** 경고를 받은 시각 (예: 14:02:05) */
+function clock(ms?: number) {
+  return ms ? new Date(ms).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "";
+}
+
 export function AnalysisPanel({
   analysis,
   names,
@@ -30,6 +35,8 @@ export function AnalysisPanel({
   const riskBand = alert?.level === "WARN" ? "danger" : alert || (measured && score >= 40) ? "caution" : measured ? "safe" : "idle";
   const hasFindings = !!alert || (status === "on" && falsePositive) || !!action;
   const alertReason = alert?.reason || (judged.action === "WARN" ? judged.reason : null);
+  // 지난 경고: 최신 경고 아래에 최근 것부터 쌓는다 (근거가 없는 갱신은 뺀다)
+  const pastWarnings = warnings.slice(0, -1).filter((w) => w.reason).reverse();
   const [view, setView] = useState<"risk" | "findings">("risk");
   const [seenFindings, setSeenFindings] = useState<string | null>(null);
   const findingsKey = hasFindings ? JSON.stringify([alert?.eventSeq, action?.eventSeq, judged.reason]) : null;
@@ -131,7 +138,18 @@ export function AnalysisPanel({
               </button>
             )}
             </div>
+            {alert.receivedAt && <span className="why-meta">{clock(alert.receivedAt)} · 위험도 {alert.score}</span>}
             <p className="why-text">{alertReason ? withName(alertReason, names) : "상세 판단 근거를 기다리고 있어요."}</p>
+            {pastWarnings.length > 0 && (
+              <ol className="why-history" aria-label="이전 판단 근거" data-testid="analysis-reason-history">
+                {pastWarnings.map((w) => (
+                  <li key={w.eventSeq}>
+                    <span className="why-meta">{clock(w.receivedAt)} · 위험도 {w.score}</span>
+                    <p className="why-history-text">{withName(w.reason!, names)}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
         )}
 
