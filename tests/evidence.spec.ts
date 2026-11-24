@@ -317,6 +317,79 @@ test("long analysis keeps conversation visible and evidence navigation preserves
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
+test.describe("judgment history", () => {
+  test.use({ timezoneId: "Asia/Seoul" });
+
+  test("keeps timestamped reasons, ignores replayed events, and navigates older evidence", async ({ page, context }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.clock.setFixedTime(new Date("2026-11-24T06:24:00Z"));
+    await join(page, "김민수");
+    await join(await context.newPage(), "이서연");
+    await detect(page);
+    await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+    const latest = page.getByTestId("analysis-reason");
+    const history = page.getByRole("region", { name: "이전 판단 근거", exact: true });
+    await expect(latest.locator("time")).toHaveText("오후 3:24");
+    await expect(latest.locator("time")).toHaveAttribute("datetime", "2026-11-24T06:24:00.000Z");
+
+    await page.clock.setFixedTime(new Date("2026-11-24T06:25:00Z"));
+    await page.evaluate(() => {
+      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+        eventSeq: 7, level: "WARN", score: 95, reason: "기관을 사칭하며 신분증 사진을 요구했어요.", evidenceSeqs: [1],
+      }) }));
+    });
+    await expect(latest).toContainText("신분증 사진을 요구했어요.");
+    await expect(latest.locator("time")).toHaveText("오후 3:25");
+    await expect(history.getByTestId("analysis-history-reason")).toHaveCount(1);
+    const original = history.getByTestId("analysis-history-reason").filter({ hasText: "안전계좌로 이체하도록 유도했어요." });
+    await expect(original.locator("time")).toHaveText("오후 3:24");
+    await page.getByRole("complementary", { name: "ScamShield 통화 보호" }).screenshot({ path: "test-results/judgment-history.png", animations: "disabled" });
+
+    await page.clock.setFixedTime(new Date("2026-11-24T06:26:00Z"));
+    await page.evaluate(() => {
+      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+        eventSeq: 7, level: "WARN", score: 95, reason: "중복으로 재전송된 이벤트", evidenceSeqs: [1],
+      }) }));
+    });
+    await expect(history.getByTestId("analysis-history-reason")).toHaveCount(1);
+    await expect(latest.locator("time")).toHaveText("오후 3:25");
+    for (let eventSeq = 8; eventSeq <= 13; eventSeq++) {
+      await page.clock.setFixedTime(new Date(Date.UTC(2026, 10, 24, 6, 26 + eventSeq - 8)));
+      await page.evaluate((eventSeq) => {
+        (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+          eventSeq, level: "WARN", score: 95, reason: `급하게 송금하도록 재촉하고 있어요. 추가 판단 ${eventSeq}`, evidenceSeqs: [1],
+        }) }));
+      }, eventSeq);
+    }
+    await expect(history.getByTestId("analysis-history-reason")).toHaveCount(7);
+    const findings = page.getByRole("region", { name: "분석 결과 및 대응 방안", exact: true });
+    expect(await findings.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await original.scrollIntoViewIfNeeded();
+    await expect(original).toBeInViewport({ ratio: 1 });
+    await page.evaluate(() => {
+      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+        eventSeq: 14, level: "WARN", score: 98, reason: "추가 송금 요구가 확인됐어요.", evidenceSeqs: [1],
+      }) }));
+    });
+    await expect(history.getByTestId("analysis-history-reason")).toHaveCount(8);
+    await expect(original).toBeInViewport({ ratio: 1 });
+    await expect(original.locator("time")).toHaveText("오후 3:24");
+    await original.getByRole("button", { name: "근거가 된 말 4개 보기" }).click();
+    await expect(page.locator("#line-2")).toHaveClass(/flash/);
+    await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await original.scrollIntoViewIfNeeded();
+    await expect(original).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await page.getByTestId("analysis").screenshot({ path: "test-results/judgment-history-mobile.png", animations: "disabled" });
+    await page.getByRole("button", { name: "통화 위험도 보기", exact: true }).click();
+    await page.getByTestId("analysis-toggle").click();
+    await expect(page.getByTestId("analysis-history-reason")).toHaveCount(0);
+    await expect(latest).toHaveCount(0);
+  });
+});
+
 test("empty conversation stays centered and protection controls stay fixed when toggled", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await join(page, "나");

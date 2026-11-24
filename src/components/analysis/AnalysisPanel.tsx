@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from "react";
-import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
+import { useState, type FormEvent, type ReactNode } from "react";
+import type { AnalysisAlert, TranscriptLine, useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
+
+const receiptTimeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 
 /** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
 /** AI 는 화자를 참가자 id(p1, p2 …)로 본다 → 근거 속 id 를 참가자 이름으로 바꿔 보여 준다 */
@@ -13,10 +15,12 @@ export function AnalysisPanel({
   analysis,
   names,
   onSelectSpeaker,
+  statusIndicator,
 }: {
   analysis: ReturnType<typeof useAnalysis>;
   names: Map<string, string>;
   onSelectSpeaker: (trackId: string) => void;
+  statusIndicator: ReactNode;
 }) {
   const { status, error, alert, warnings, action, judged, lines, tracks, streamDown, enable, disable, reply } = analysis;
   const on = status === "on" || status === "starting";
@@ -30,6 +34,7 @@ export function AnalysisPanel({
   const riskBand = alert?.level === "WARN" ? "danger" : alert || (measured && score >= 40) ? "caution" : measured ? "safe" : "idle";
   const hasFindings = !!alert || (status === "on" && falsePositive) || !!action;
   const alertReason = alert?.reason || (judged.action === "WARN" ? judged.reason : null);
+  const previousWarnings = warnings.filter((warning) => warning.eventSeq !== alert?.eventSeq).reverse();
   const [view, setView] = useState<"risk" | "findings">("risk");
   const [seenFindings, setSeenFindings] = useState<string | null>(null);
   const findingsKey = hasFindings ? JSON.stringify([alert?.eventSeq, action?.eventSeq, judged.reason]) : null;
@@ -67,7 +72,10 @@ export function AnalysisPanel({
     <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis" data-view={view}>
       <div className="analysis-navigation">
         <h2 className="panel-section-title" id="analysis-view-title">{view === "risk" ? "통화 위험도" : "분석 결과·대응"}</h2>
-        {view === "findings" && pageLink}
+        <div className="analysis-navigation-actions">
+          {statusIndicator}
+          {view === "findings" && pageLink}
+        </div>
       </div>
 
       <div id="analysis-risk" className="guard-page guard-risk" hidden={view !== "risk"} role="region" aria-label="위험도 상세" tabIndex={0}>
@@ -117,23 +125,7 @@ export function AnalysisPanel({
           </div>
         )}
 
-        {alert && (
-          <div className="why" key={alert.eventSeq} data-fresh={warnings.length > 1 || undefined} data-testid="analysis-reason">
-            <div className="why-heading"><p className="why-title" title={warnings.length > 1 ? `최근 판단 기준 · ${warnings.length - 1}번 갱신` : undefined}>AI 판단 근거</p>
-            {(alert.evidenceSeqs?.length ?? 0) > 0 && (
-              <button className="why-link" type="button" onClick={() => {
-                const seq = alert.evidenceSeqs![0];
-                showLine(seq);
-                const line = lines.find((line) => line.seq === seq);
-                if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
-              }}>
-                근거가 된 말 {alert.evidenceSeqs!.length}개 보기
-              </button>
-            )}
-            </div>
-            <p className="why-text">{alertReason ? withName(alertReason, names) : "상세 판단 근거를 기다리고 있어요."}</p>
-          </div>
-        )}
+        {alert && <ReasonCard warning={alert} reason={alertReason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} latest />}
 
         {hasFindings && <section className="analysis-response" data-testid="analysis-response" aria-label="대응 방안">
           <h3 className="why-title">대응 방안</h3>
@@ -146,10 +138,47 @@ export function AnalysisPanel({
         {!alert?.message && !action && <p className="guard-note">추가 대응 안내가 있으면 여기에 표시됩니다.</p>}
         </section>}
 
+        {previousWarnings.length > 0 && <section className="reason-history" aria-label="이전 판단 근거">
+          <h3 className="why-title">이전 판단 근거 <span>{previousWarnings.length}건</span></h3>
+          <ol className="reason-history-list">
+            {previousWarnings.map((warning) => <li key={warning.eventSeq}>
+              <ReasonCard warning={warning} reason={warning.reason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} />
+            </li>)}
+          </ol>
+        </section>}
+
         {error && <p className="error">{error}</p>}
       </div>
     </section>
   );
+}
+
+function ReasonCard({ warning, reason, names, lines, onSelectSpeaker, latest = false }: {
+  warning: AnalysisAlert;
+  reason: string | null | undefined;
+  names: Map<string, string>;
+  lines: TranscriptLine[];
+  onSelectSpeaker: (trackId: string) => void;
+  latest?: boolean;
+}) {
+  const received = new Date(warning.receivedAt);
+  return <article className="why" data-latest={latest || undefined} data-testid={latest ? "analysis-reason" : "analysis-history-reason"}>
+    <div className="why-heading">
+      <p className="why-title">{latest ? "AI 판단 근거" : `${warning.level === "WARN" ? "위험 감지" : "주의 감지"} · 위험도 ${warning.score}`}</p>
+      {(warning.evidenceSeqs?.length ?? 0) > 0 && <button className="why-link" type="button" onClick={() => {
+        const seq = warning.evidenceSeqs![0];
+        showLine(seq);
+        const line = lines.find((line) => line.seq === seq);
+        if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
+      }}>근거가 된 말 {warning.evidenceSeqs!.length}개 보기</button>}
+    </div>
+    <div className="reason-received">
+      {latest && <span className="reason-latest">최신</span>}
+      <time dateTime={received.toISOString()} title={`분석 결과: ${received.toLocaleString("ko-KR")}`}>{receiptTimeFormat.format(received)}</time>
+      <span>분석 결과</span>
+    </div>
+    <p className="why-text">{reason ? withName(reason, names) : "상세 판단 근거를 기다리고 있어요."}</p>
+  </article>;
 }
 
 function PageArrow({ previous = false }: { previous?: boolean }) {
