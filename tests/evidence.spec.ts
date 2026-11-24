@@ -104,12 +104,39 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
 
   await page.locator("#line-2 button").click();
   await expect(speaker).toHaveAttribute("data-evidence-active", "true");
+  await expect(speaker.getByRole("status")).toContainText("위험 인물입니다.");
+  await expect(speaker.getByRole("status")).toContainText("주의하세요!");
+  await expect(speaker.locator(".guardian-hand")).toHaveCount(1);
+  await expect(speaker.locator(".guardian-magnifier")).toHaveCount(0);
+  for (const selector of [".guardian-point", ".speaker-warning-highlight"]) {
+    expect(await speaker.locator(selector).evaluate((element) => getComputedStyle(element).animationIterationCount)).toBe("infinite");
+  }
   await expect(self).not.toHaveAttribute("data-evidence-active");
   await expect(bystander).not.toHaveAttribute("data-evidence-active");
   await speaker.locator(".speaker-warning-highlight").evaluate((element) => { (window as any).__firstPulse = element; });
   await page.locator("#line-2 button").click();
   expect(await speaker.locator(".speaker-warning-highlight").evaluate((element) => element === (window as any).__firstPulse)).toBe(false);
-  await page.screenshot({ path: "test-results/evidence-speaker.png", fullPage: true });
+  await page.screenshot({ path: "test-results/evidence-speaker.png", fullPage: true, animations: "disabled" });
+
+  for (const viewport of [{ width: 900, height: 720 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.locator("#line-2 button").click();
+    await page.getByTestId("people").screenshot({ path: `test-results/evidence-speaker-${viewport.width}.png`, animations: "disabled" });
+    const tile = await speaker.boundingBox();
+    const guide = await speaker.locator(".speaker-warning-guide").boundingBox();
+    const speech = await speaker.locator(".speaker-warning-speech").boundingBox();
+    expect(speech!.x).toBeGreaterThanOrEqual(tile!.x);
+    expect(speech!.x + speech!.width).toBeLessThanOrEqual(tile!.x + tile!.width);
+    expect(guide!.y).toBeGreaterThanOrEqual(0);
+    expect(guide!.y + guide!.height).toBeLessThanOrEqual(tile!.y);
+    for (const person of [self, bystander]) {
+      const otherTile = await person.boundingBox();
+      const overlaps = guide!.x < otherTile!.x + otherTile!.width && guide!.x + guide!.width > otherTile!.x
+        && guide!.y < otherTile!.y + otherTile!.height && guide!.y + guide!.height > otherTile!.y;
+      expect(overlaps).toBe(false);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
 
   await page.locator("#line-1 button").press("Enter");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
@@ -118,13 +145,54 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   await page.getByRole("button", { name: "근거가 된 말 4개 보기" }).click();
   await expect(speaker).toHaveAttribute("data-evidence-active", "true");
   await expect(page.locator("#line-2")).toHaveClass(/flash/);
-  await expect(speaker).not.toHaveAttribute("data-evidence-active", { timeout: 4000 });
+  await page.waitForTimeout(9000);
+  await expect(speaker).toHaveAttribute("data-evidence-active", "true");
+  await expect(speaker.locator(".speaker-warning-guide")).toBeVisible();
+  await expect(speaker).not.toHaveAttribute("data-evidence-active");
+  await expect(page.locator(".speaker-warning-guide")).toHaveCount(0);
   await expect(page.locator("#line-3 button, #line-4 button, #line-5 button")).toHaveCount(0);
   await page.locator("#line-2 button").click();
   await other.getByRole("button", { name: "통화 나가기" }).click();
   await expect(speaker).toHaveCount(0);
   await expect(page.locator("#line-2 button")).toHaveCount(0);
   await expect(bystander).not.toHaveAttribute("data-evidence-active");
+});
+
+test("captures the guardian outside all four participant positions", async ({ page, context }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await join(page, "김민수");
+  for (const name of ["이서연", "박지훈", "최유진"]) {
+    const participant = await context.newPage();
+    await join(participant, name);
+  }
+  await detect(page);
+  await page.evaluate(() => {
+    const source = (window as any).__testAnalysisEvents;
+    source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
+      eventSeq: 7, seq: 6, kind: "SPEECH", trackId: "participant-4", text: "확인을 위해 지금 송금해 주세요.",
+    }) }));
+    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
+      eventSeq: 8, level: "WARN", score: 90, evidenceSeqs: [1, 2, 3, 6],
+      reason: "송금을 유도하는 발화를 확인했어요.",
+    }) }));
+  });
+  for (const [index, position] of ["top-left", "top-right", "bottom-left", "bottom-right"].entries()) {
+    const seq = [1, 2, 3, 6][index];
+    const selected = page.getByTestId(`person-participant-${index + 1}`);
+    await page.locator(`#line-${seq} button`).click();
+    for (const person of await page.locator(".person").all()) await expect(person).toHaveCSS("transform", "none");
+    await page.screenshot({ path: `test-results/guardian-${position}.png`, fullPage: true, animations: "disabled" });
+    const guide = await selected.locator(".speaker-warning-guide").boundingBox();
+    const tile = await selected.boundingBox();
+    expect(guide!.y + guide!.height).toBeLessThanOrEqual(tile!.y);
+    await expect(selected.locator(".speaker-warning-guide")).toBeInViewport({ ratio: 1 });
+    for (let participant = 1; participant <= 4; participant++) {
+      const bounds = await page.getByTestId(`person-participant-${participant}`).boundingBox();
+      const overlaps = guide!.x < bounds!.x + bounds!.width && guide!.x + guide!.width > bounds!.x
+        && guide!.y < bounds!.y + bounds!.height && guide!.y + guide!.height > bounds!.y;
+      expect(overlaps).toBe(false);
+    }
+  }
 });
 
 test("reduced motion uses a static warning and disabling analysis clears the highlight", async ({ page }) => {
@@ -136,8 +204,10 @@ test("reduced motion uses a static warning and disabling analysis clears the hig
   await page.locator("#line-1 button").press("Space");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
   expect(await self.locator(".speaker-warning-highlight").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+  expect(await self.locator(".guardian-point").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
   await page.getByTestId("analysis-toggle").click();
   await expect(self).not.toHaveAttribute("data-evidence-active");
+  await expect(page.locator(".speaker-warning-guide")).toHaveCount(0);
   await expect(page.getByTestId("transcript").locator("li")).toHaveCount(0);
   // 사용자가 끈 분석은 자동으로 다시 켜지지 않는다 (자동 시작은 통화마다 한 번)
   await page.waitForTimeout(1000);

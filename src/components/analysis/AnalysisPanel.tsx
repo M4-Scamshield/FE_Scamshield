@@ -1,6 +1,7 @@
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
+import { AnalysisGuardian } from "../common/AnalysisGuardian";
 
 /** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
 /** AI 는 화자를 참가자 id(p1, p2 …)로 본다 → 근거 속 id 를 참가자 이름으로 바꿔 보여 준다 */
@@ -153,33 +154,6 @@ export function AnalysisPanel({
 
 function PageArrow({ previous = false }: { previous?: boolean }) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" data-previous={previous || undefined}><path d="m9 5 7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-}
-
-function AnalysisGuardian({ state }: { state: "off" | "connecting" | "analyzing" | "listening" }) {
-  const clipId = useId();
-  const outline = "M28 5 45 12v14c0 11-7 18-17 23-10-5-17-12-17-23V12L28 5Z";
-  return (
-    <svg className="analysis-guardian" data-state={state} data-active={state !== "off" || undefined} viewBox="0 0 72 56" fill="none" aria-hidden="true" focusable="false">
-      <defs><clipPath id={clipId}><path d={outline} /></clipPath></defs>
-      <ellipse className="guardian-shadow" cx="28" cy="50" rx="13" ry="3" />
-      <g className="guardian-body">
-        <path className="guardian-shell" d={outline} strokeWidth="1.5" strokeLinejoin="round" />
-        <g clipPath={`url(#${clipId})`}><rect className="guardian-fill" x="11" y="5" width="34" height="44" /></g>
-        <path className="guardian-shine" d="m17 16 11-5 10 4" strokeWidth="2" strokeLinecap="round" />
-        <rect className="guardian-visor" x="17" y="21" width="22" height="13" rx="6.5" />
-        <g className="guardian-eyes"><path d="M23 26v3M33 26v3" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" /></g>
-        <path className="guardian-smile" d="M25 38q3 3 6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path className="guardian-scan" d="M19 23h18" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
-        <g className="guardian-magnifier"><g className="guardian-search">
-          <path className="guardian-arm" d="M40 33q5 9 13 2" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          <path d="m58 34 7 8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-          <circle className="guardian-lens" cx="52" cy="27" r="9" stroke="currentColor" strokeWidth="2" />
-          <path className="guardian-lens-shine" d="M47 26a5 5 0 0 1 5-4" strokeWidth="1.8" strokeLinecap="round" />
-        </g></g>
-      </g>
-      <g className="guardian-sparks" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M48 8v4M46 10h4M6 29v4M4 31h4" /></g>
-    </svg>
-  );
 }
 
 /** 대화 기록에서 그 발화로 스크롤하고 잠깐 깜빡인다 */

@@ -8,6 +8,7 @@ import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { useSpeaking } from "../../hooks/call/useSpeaking";
 import { BrandLogo } from "../common/BrandLogo";
+import { AnalysisGuardian } from "../common/AnalysisGuardian";
 import { SoundSettings } from "./SoundSettings";
 import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
 import { DEFAULT_PEER_SOUND } from "../../hooks/call/useSoundSettings";
@@ -96,17 +97,19 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
       setSpeakerHighlight(null);
       return;
     }
-    const timer = setTimeout(() => setSpeakerHighlight(null), 2400);
-    return () => clearTimeout(timer);
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`participant-${speakerHighlight.trackId}`)?.scrollIntoView({
+        block: "nearest", inline: "nearest",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+      });
+    });
+    const timer = setTimeout(() => setSpeakerHighlight(null), 10000);
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
   }, [speakerHighlight, analysis.status, highlightedSpeakerIsLive]);
 
   const highlightSpeaker = (trackId: string) => {
     if (!liveTracks.has(trackId) || analysis.status !== "on") return;
     setSpeakerHighlight((previous) => ({ trackId, pulse: (previous?.pulse ?? 0) + 1 }));
-    document.getElementById(`participant-${trackId}`)?.scrollIntoView({
-      block: "nearest", inline: "nearest",
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-    });
   };
   // 전사의 trackId(= 참가자 id) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
   const names = useRef(new Map<string, string>([["USER", "내 입력"]]));
@@ -175,7 +178,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           <div className="gallery-viewport">
             {participantCount > 0 ? (
               <MotionConfig reducedMotion="user" transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
-                <motion.ul layout className="people" data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
+                <motion.ul layout className="people" data-speaker-warning={highlightedSpeakerIsLive || undefined} data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
                   <AnimatePresence initial={false} mode="popLayout">
                     {joined && (
                       <ParticipantTile
@@ -354,14 +357,24 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       }}
       style={{ pointerEvents: present ? undefined : "none", "--voice-level": voice.level } as CSSProperties}
     >
-      {video && <TileVideo stream={video} mirror={me} />}
-      {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
-      {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
-      <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
-      <motion.div layout="position" className="participant-bottom">
-        <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
-      </motion.div>
-      {state && <span className="pstate">{state}</span>}
+      <div className="participant-surface">
+        {video && <TileVideo stream={video} mirror={me} />}
+        {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
+        {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
+        <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
+        <motion.div layout="position" className="participant-bottom">
+          <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
+        </motion.div>
+        {state && <span className="pstate">{state}</span>}
+      </div>
+      {evidencePulse !== undefined && <div key={`warning-${evidencePulse}`} className="speaker-warning-guide" role="status" aria-atomic="true">
+        <AnalysisGuardian state="warning" />
+        <div className="speaker-warning-speech">
+          <span className="speaker-warning-name" title={info.name}>{info.name}{me ? " (나)" : ""}</span>
+          <strong>위험 인물입니다.</strong>
+          <span>주의하세요!</span>
+        </div>
+      </div>}
     </motion.li>
   );
 });
