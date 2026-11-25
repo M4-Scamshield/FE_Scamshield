@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
-import { CameraIcon, CameraOffIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
+import { CameraIcon, CameraOffIcon, ChatIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
@@ -9,6 +9,7 @@ import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { useSpeaking } from "../../hooks/call/useSpeaking";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
 import { SoundSettings } from "./SoundSettings";
+import { ChatPanel } from "./ChatPanel";
 import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
 import { DEFAULT_PEER_SOUND } from "../../hooks/call/useSoundSettings";
 import type { UploaderState } from "../../services/analysis/PcmUploader";
@@ -68,6 +69,17 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [readChatCount, setReadChatCount] = useState(0);
+  const chatButtonRef = useRef<HTMLButtonElement>(null);
+  const unreadChatCount = chatOpen ? 0 : Math.max(0, call.incomingChatCount - readChatCount);
+  useEffect(() => {
+    if (chatOpen) setReadChatCount(call.incomingChatCount);
+  }, [chatOpen, call.incomingChatCount]);
+  const closeChat = () => {
+    setChatOpen(false);
+    chatButtonRef.current?.focus({ preventScroll: true });
+  };
   const [speakerHighlight, setSpeakerHighlight] = useState<{ trackId: string; pulse: number } | null>(null);
   const [soundMenuTarget, setSoundMenuTarget] = useState<SoundMenuTarget | null>(null);
   const closeSoundMenu = useCallback(() => setSoundMenuTarget(null), []);
@@ -218,6 +230,9 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           {joined && participantCount === 1 && <p className="meeting-caption">아직 나만 있어요. 초대 링크를 공유해 통화를 시작하세요.</p>}
         </motion.div>
 
+        <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} ready={call.chatReady}
+          hasPeers={peers.length > 0} onSend={call.sendChat} onClose={closeChat} />
+
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
           <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
           <div className="controls">
@@ -227,6 +242,12 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             <SoundSettings call={call} />
             <button className="round camera-control" onClick={toggleCamera} data-active={!!camera} aria-pressed={!!camera} aria-label={camera ? "카메라 끄기" : "카메라 켜기"} title={camera ? "카메라 끄기" : "카메라 켜기"}>
               {camera ? <CameraIcon /> : <CameraOffIcon />}
+            </button>
+            <button ref={chatButtonRef} type="button" className="round chat-toggle" data-active={chatOpen}
+              onClick={() => setChatOpen((open) => !open)} aria-expanded={chatOpen} aria-controls="call-chat-panel"
+              aria-label={chatOpen ? "채팅 닫기" : "채팅 열기"} title={chatOpen ? "채팅 닫기" : "채팅 열기"}>
+              <ChatIcon />{unreadChatCount > 0 && <span className="chat-unread" aria-hidden="true">{unreadChatCount > 99 ? "99+" : unreadChatCount}</span>}
+              <span className="chat-unread-announcement" role="status">{unreadChatCount > 0 ? `읽지 않은 채팅 ${unreadChatCount}개` : ""}</span>
             </button>
             <button className="round" onClick={copyInvite} data-active={copied} aria-label="초대 링크 복사" title={copied ? "복사 완료" : "초대 링크 복사"}>
               <LinkIcon /><span className="invite-feedback" role="status">{copied ? "초대 링크가 복사되었습니다" : ""}</span>

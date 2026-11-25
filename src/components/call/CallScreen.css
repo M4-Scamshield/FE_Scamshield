@@ -385,6 +385,11 @@ main[data-view="call"] .log { max-height: 100px; }
   .meeting-toolbar { padding: 12px 18px; }
   .safety-content { padding: 16px; }
 }
+@media (min-width: 801px) and (max-width: 1000px) {
+  .meeting-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  .meeting-toolbar .controls { gap: 6px; }
+  .toolbar-people-label { display: none; }
+}
 @media (max-width: 800px) {
   main[data-view="call"] { height: auto; min-height: 100dvh; }
   .call-layout { height: auto; grid-template-columns: minmax(0, 1fr); }
