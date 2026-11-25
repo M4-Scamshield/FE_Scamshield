@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
+import { flushSync } from "react-dom";
 import { CameraIcon, CameraOffIcon, ChatIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
@@ -69,6 +70,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [transcriptSpeaker, setTranscriptSpeaker] = useState<string | null>(null);
+  const revealTranscript = () => flushSync(() => setTranscriptSpeaker(null));
   const [chatOpen, setChatOpen] = useState(false);
   const [readChatCount, setReadChatCount] = useState(0);
   const chatButtonRef = useRef<HTMLButtonElement>(null);
@@ -270,7 +273,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
         <div className="safety-content">
           <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
-            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker}
+            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} onRevealTranscript={revealTranscript}
               statusIndicator={<div className="watch-status" role="status" data-testid="watch">
                 <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
               </div>}
@@ -278,6 +281,8 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           </div>
           <TranscriptPanel
             selfId={joined?.self.id}
+            selectedSpeaker={transcriptSpeaker}
+            onSelectFilter={setTranscriptSpeaker}
             active={analysis.status === "on"}
             lines={analysis.lines}
             names={names.current}

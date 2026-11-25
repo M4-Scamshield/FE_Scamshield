@@ -45,6 +45,62 @@ async function detect(page: Page) {
   await expect(page.locator("#line-2")).toBeVisible();
 }
 
+test("transcript filters by participant ID, receives new speech, and keeps departed speakers", async ({ page, context }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await join(page, "나");
+  const other = await context.newPage();
+  await join(other, "상대방");
+  const third = await context.newPage();
+  await join(third, "아직 말하지 않은 참가자");
+  const filters = page.getByRole("group", { name: "대화 기록 화자 필터" });
+  const heading = await page.getByRole("heading", { name: "대화 기록", exact: true }).boundingBox();
+  const filterBounds = await filters.boundingBox();
+  expect(filterBounds!.y).toBe(heading!.y);
+  await filters.getByRole("button", { name: "아직 말하지 않은 참가자", exact: true }).click();
+  await expect(page.getByTestId("transcript")).toContainText("이 참가자의 대화 기록이 없어요");
+  await filters.getByRole("button", { name: "대화 기록 전체", exact: true }).click();
+  await detect(page);
+  await filters.getByRole("button", { name: "상대방", exact: true }).click();
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(1);
+  await expect(page.locator("#line-2")).toBeVisible();
+  await expect(page.locator("#line-2")).toHaveAttribute("data-evidence", "true");
+  await page.evaluate(() => {
+    const source = (window as any).__testAnalysisEvents;
+    for (const line of [
+      { seq: 6, kind: "SPEECH", trackId: "participant-1", text: "다른 화자의 새 발화" },
+      { seq: 7, kind: "SPEECH", trackId: "participant-2", text: "선택한 화자의 새 발화" },
+    ]) source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({ ...line, eventSeq: line.seq + 1 }) }));
+    // 재전송된 이벤트를 중복해서 표시하지 않는다.
+    source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({ eventSeq: 8, seq: 7, kind: "SPEECH", trackId: "participant-2", text: "선택한 화자의 새 발화" }) }));
+  });
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(2);
+  await expect(page.locator("#line-7")).toHaveText(/선택한 화자의 새 발화/);
+  await expect(page.locator(".transcript-count")).toHaveText("2개 발화");
+  await other.getByRole("button", { name: "통화 나가기" }).click();
+  await expect(filters.getByRole("button", { name: "상대방 퇴장", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(2);
+  await page.screenshot({ path: "test-results/transcript-filter.png", fullPage: true });
+  await filters.getByRole("button", { name: "대화 기록 전체", exact: true }).click();
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(7);
+  await expect(page.locator("#line-4")).toContainText("사용자가 입력한 문자");
+});
+
+test("evidence shortcuts reveal speech hidden by the selected participant filter", async ({ page, context }) => {
+  await join(page, "같은 이름");
+  const other = await context.newPage();
+  await join(other, "같은 이름");
+  await detect(page);
+  const filters = page.getByRole("group", { name: "대화 기록 화자 필터" });
+  await filters.getByRole("button", { name: "같은 이름 (나)", exact: true }).click();
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(1);
+  await expect(page.locator("#line-1")).toBeVisible();
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  await page.getByRole("button", { name: "근거가 된 말 4개 보기", exact: true }).click();
+  await expect(filters.getByRole("button", { name: "대화 기록 전체", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#line-2")).toHaveClass(/flash/);
+  await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
+});
+
 test("risk and findings switch without moving the conversation", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await join(page, "나");

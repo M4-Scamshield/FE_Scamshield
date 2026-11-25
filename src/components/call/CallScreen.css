@@ -328,11 +328,20 @@ main[data-view="call"] .log { max-height: 100px; }
 
 /* 대화의 화자 색은 참가자 타일과 일치시킨다. 위험 근거만 주황으로 강조한다. */
 .transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0; }
-.transcript-head { position: relative; flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e0e6e3; }
-.transcript-head::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 28px; height: 2px; background: #93b6a6; }
-.transcript-head .panel-section-title { padding-bottom: 0; border: 0; }
+.transcript-head { position: relative; flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid #e0e6e3; }
+.transcript-head .panel-section-title { flex: none; margin: 0; padding: 0; border: 0; }
 .transcript-head > span { color: #8b968f; font-size: .75rem; white-space: nowrap; }
 .transcript-count { display: inline-flex; align-items: center; gap: 6px; }
+.transcript-filters { flex: 1; min-width: 0; display: flex; align-items: baseline; overflow-x: auto; scrollbar-width: thin; }
+.transcript-filters button { position: relative; flex: none; display: inline-flex; align-items: baseline; gap: 4px; max-width: 140px; white-space: nowrap; padding: 0 10px 12px; border: 0; border-radius: 0; background: transparent; color: #7b8b82; font-size: var(--text-small); line-height: 1.5; }
+.transcript-filters .panel-section-title button { padding-left: 0; color: #62756b; }
+.transcript-filters > button::before { content: ""; position: absolute; left: 0; top: 4px; height: 12px; border-left: 1px solid #c9d6ce; }
+.transcript-filters button:hover { color: #285b40; }
+.transcript-filters button[aria-pressed="true"] { color: #285b40; font-weight: var(--weight-semibold); }
+.transcript-filters button[aria-pressed="true"]::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; background: #79a890; }
+.transcript-filters .panel-section-title button[aria-pressed="true"]::after { left: 0; }
+.transcript-filter-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.transcript-filter-left { flex: none; font-size: .75rem; font-weight: var(--weight-regular); opacity: .8; }
 .transcript[data-active="true"] .transcript-count::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #438e73; }
 .transcript-empty { flex: none; min-height: 148px; display: grid; place-content: center; margin: 0; padding: 24px 0; color: #7b8b82; font-size: .75rem; line-height: 1.8; text-align: center; }
 .transcript-empty-icon { display: block; width: 72px; height: 65px; margin: 0 auto 16px; color: #9ab7a8; }

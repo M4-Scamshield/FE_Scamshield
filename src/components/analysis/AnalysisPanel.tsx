@@ -15,11 +15,13 @@ export function AnalysisPanel({
   analysis,
   names,
   onSelectSpeaker,
+  onRevealTranscript,
   statusIndicator,
 }: {
   analysis: ReturnType<typeof useAnalysis>;
   names: Map<string, string>;
   onSelectSpeaker: (trackId: string) => void;
+  onRevealTranscript: () => void;
   statusIndicator: ReactNode;
 }) {
   const { status, error, alert, warnings, action, judged, lines, tracks, streamDown, enable, disable, reply } = analysis;
@@ -44,7 +46,7 @@ export function AnalysisPanel({
   const [openTactics, setOpenTactics] = useState<Record<string, boolean>>({});
   const showEvidence = (seqs: number[]) => {
     if (seqs.length === 0) return;
-    showLines(seqs);
+    showLines(seqs, onRevealTranscript);
     const line = lines.find((line) => line.seq === seqs[0]);
     if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
   };
@@ -159,7 +161,7 @@ export function AnalysisPanel({
           </div>
         )}
 
-        {alert && findings.length === 0 && <ReasonCard warning={alert} reason={alertReason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} latest />}
+        {alert && findings.length === 0 && <ReasonCard warning={alert} reason={alertReason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} onRevealTranscript={onRevealTranscript} latest />}
 
         {hasFindings && <section className="analysis-response" data-testid="analysis-response" aria-label="대응 방안">
           <h3 className="why-title">대응 방안</h3>
@@ -176,7 +178,7 @@ export function AnalysisPanel({
           <h3 className="why-title">이전 판단 근거 <span>{previousWarnings.length}건</span></h3>
           <ol className="reason-history-list">
             {previousWarnings.map((warning) => <li key={warning.eventSeq}>
-              <ReasonCard warning={warning} reason={warning.reason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} />
+              <ReasonCard warning={warning} reason={warning.reason} names={names} lines={lines} onSelectSpeaker={onSelectSpeaker} onRevealTranscript={onRevealTranscript} />
             </li>)}
           </ol>
         </section>}
@@ -187,12 +189,13 @@ export function AnalysisPanel({
   );
 }
 
-function ReasonCard({ warning, reason, names, lines, onSelectSpeaker, latest = false }: {
+function ReasonCard({ warning, reason, names, lines, onSelectSpeaker, onRevealTranscript, latest = false }: {
   warning: AnalysisAlert;
   reason: string | null | undefined;
   names: Map<string, string>;
   lines: TranscriptLine[];
   onSelectSpeaker: (trackId: string) => void;
+  onRevealTranscript: () => void;
   latest?: boolean;
 }) {
   const evidenceSeqs = warning.evidenceSeqs ?? [...new Set((warning.findings ?? []).flatMap((finding) => finding.evidenceSeqs))];
@@ -201,7 +204,7 @@ function ReasonCard({ warning, reason, names, lines, onSelectSpeaker, latest = f
     <div className="why-heading">
       <p className="why-title">{latest ? "AI 판단 근거" : `${warning.level === "WARN" ? "위험 감지" : "주의 감지"} · 위험도 ${warning.score}`}</p>
       {evidenceSeqs.length > 0 && <button className="why-link" type="button" onClick={() => {
-        showLines(evidenceSeqs);
+        showLines(evidenceSeqs, onRevealTranscript);
         const line = lines.find((line) => line.seq === evidenceSeqs[0]);
         if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
       }}>근거가 된 말 {evidenceSeqs.length}개 보기</button>}
@@ -225,7 +228,9 @@ function PageArrow({ previous = false }: { previous?: boolean }) {
 }
 
 /** 대화 기록에서 첫 근거 발화로 스크롤하고, 근거 발화를 모두 잠깐 깜빡인다 */
-function showLines(seqs: number[]) {
+function showLines(seqs: number[], onRevealTranscript: () => void) {
+  // 필터에 가려진 발화도 근거 버튼에서 즉시 찾을 수 있게 전체 보기를 먼저 복원한다.
+  onRevealTranscript();
   const els = seqs.map((seq) => document.getElementById(`line-${seq}`)).filter((el): el is HTMLElement => !!el);
   if (els.length === 0) return;
   els[0].scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
