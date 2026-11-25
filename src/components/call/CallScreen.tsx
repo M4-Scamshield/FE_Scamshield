@@ -239,7 +239,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         </motion.div>
 
         <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} ready={call.chatReady}
-          hasPeers={peers.length > 0} onSend={call.sendChat} onClose={closeChat} />
+          onSend={call.sendChat} onClose={closeChat} />
 
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
           <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>

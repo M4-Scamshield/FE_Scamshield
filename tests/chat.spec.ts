@@ -22,7 +22,7 @@ test("chat reaches every current peer, tracks unread messages, and clears on a n
   await join(page, "나");
   await openChat(page);
   await expect(page.getByRole("button", { name: "전송", exact: true })).toBeDisabled();
-  await expect(page.locator("#chat-input-hint")).toContainText("참가자가 들어오면");
+  await expect(page.locator("#chat-input-hint")).toHaveText("0 / 2,000");
   const other = await context.newPage();
   await join(other, "참가자 A");
   await send(page, "첫 메시지");
@@ -101,6 +101,43 @@ test("chat leaves the safety panel unchanged, restores focus, and preserves draf
   await page.screenshot({ path: "test-results/chat-mobile.png", fullPage: true });
 });
 
+test("chat height can be dragged and keyboard adjusted without moving the safety panel", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await join(page, "나");
+  await expect(page.getByRole("alert").filter({ hasText: "분석 서버 연결 실패 (HTTP 503)" })).toBeVisible();
+  await openChat(page);
+  const panel = page.locator(".call-chat");
+  const handle = page.getByRole("separator", { name: "채팅창 높이 조절" });
+  const sidebarBefore = await page.locator("#call-safety-panel").boundingBox();
+  const toolbarBefore = await page.locator(".meeting-toolbar").boundingBox();
+  const before = await panel.boundingBox();
+  const grip = await handle.boundingBox();
+  const x = grip!.x + grip!.width / 2;
+  const y = grip!.y + grip!.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - 100, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => (await panel.boundingBox())!.height).toBeCloseTo(before!.height + 100, 0);
+  expect(await page.locator("#call-safety-panel").boundingBox()).toEqual(sidebarBefore);
+  expect(await page.locator(".meeting-toolbar").boundingBox()).toEqual(toolbarBefore);
+  await handle.press("Home");
+  expect(Math.round((await panel.boundingBox())!.height)).toBe(Number(await handle.getAttribute("aria-valuemin")));
+  await handle.press("ArrowUp");
+  const resized = (await panel.boundingBox())!.height;
+  await page.getByRole("textbox", { name: "채팅 메시지 입력" }).press("Escape");
+  await openChat(page);
+  expect((await panel.boundingBox())!.height).toBe(resized);
+  await handle.press("End");
+  expect(Math.round((await panel.boundingBox())!.height)).toBe(Number(await handle.getAttribute("aria-valuemax")));
+  expect((await page.locator(".meeting-stage").boundingBox())!.height).toBeGreaterThanOrEqual(119);
+  await page.screenshot({ path: "test-results/chat-resized.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(async () => (await panel.boundingBox())!.height).toBeLessThanOrEqual(844 * .68 + 1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test("composition, multiline text and length limits work without sending empty messages or HTML", async ({ page, context }) => {
   await join(page, "나");
   const other = await context.newPage();
@@ -111,7 +148,7 @@ test("composition, multiline text and length limits work without sending empty m
   await input.fill("   ");
   await expect(page.getByRole("button", { name: "전송", exact: true })).toBeDisabled();
   await input.fill("한글 조합");
-  await expect(page.locator("#chat-input-hint")).toContainText("Enter 전송");
+  await expect(page.getByRole("button", { name: "전송", exact: true })).toBeEnabled();
   await input.evaluate((element) => element.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, isComposing: true })));
   await expect(page.locator(".chat-message")).toHaveCount(0);
   await input.press("Shift+Enter");
