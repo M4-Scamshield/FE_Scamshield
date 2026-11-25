@@ -86,9 +86,9 @@ export function useCall() {
     setIncomingChatCount(0);
   }, []);
 
-  const sendChat = useCallback((text: string) => {
+  const sendChat = useCallback((text: string, recipientId?: string) => {
     if (!clientRef.current) throw new Error("통화에 연결한 뒤 메시지를 보내 주세요.");
-    clientRef.current.sendChat(text);
+    clientRef.current.sendChat(text, recipientId);
   }, []);
 
   const toggleCamera = useCallback(async () => {

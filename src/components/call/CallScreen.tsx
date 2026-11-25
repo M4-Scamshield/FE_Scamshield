@@ -238,7 +238,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           {joined && participantCount === 1 && <p className="meeting-caption">아직 나만 있어요. 초대 링크를 공유해 통화를 시작하세요.</p>}
         </motion.div>
 
-        <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} ready={call.chatReady}
+        <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} peers={peers} ready={call.chatReady}
           onSend={call.sendChat} onClose={closeChat} />
 
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">

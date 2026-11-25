@@ -11,7 +11,10 @@
 .chat-header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 24px; border-bottom: 1px solid #30383f; }
 .chat-header h2 { min-width: 0; display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); }
 .chat-header h2 > svg { width: 18px; height: 18px; color: #b9d6cd; }
-.chat-header h2 > span { margin-left: 4px; color: #a2afb9; font-size: var(--text-small); font-weight: var(--weight-regular); }
+.chat-header h2 { flex: none; }
+.chat-recipient { flex: 1; min-width: 0; max-width: 240px; height: 34px; padding: 5px 28px 5px 10px; border: 1px solid #46535d; border-radius: 6px; background-color: #252e35; color: #dce6ec; font: inherit; font-size: var(--text-small); text-overflow: ellipsis; cursor: pointer; }
+.chat-recipient:focus-visible { outline: 2px solid #83cbaa; outline-offset: 2px; }
+.chat-header .chat-close { margin-left: auto; }
 .chat-close { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; border-radius: 6px; background: transparent; color: #aebac5; }
 .chat-close svg { width: 20px; height: 20px; }
 .chat-close:hover { background: #303a42; color: #fff; }
@@ -24,8 +27,11 @@
 .chat-message-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; max-width: 90%; margin-bottom: 3px; color: #b8c5cf; font-size: var(--text-small); overflow-wrap: anywhere; }
 .chat-message-meta strong { font-weight: var(--weight-medium); }
 .chat-message-meta time { color: #97a5b1; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.chat-audience { color: #a6b7c0; font-size: .75rem; }
+.chat-message[data-private] .chat-audience { color: #d3bdf4; }
 .chat-message p { max-width: min(85%, 680px); margin: 0; padding: 8px 12px; border: 1px solid #3a444d; border-radius: 2px 10px 10px; background: #29323a; color: #e6edf3; font-size: var(--text-body); white-space: pre-wrap; overflow-wrap: anywhere; }
 .chat-message[data-self="true"] p { background: #28453b; border-color: #3d6353; border-radius: 10px 2px 10px 10px; color: #e2f3e9; }
+.chat-message[data-private] p { background: #342e43; border-color: #75628f; color: #f0e9fa; }
 .chat-latest { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); padding: 5px 12px; border: 1px solid #658d78; border-radius: 20px; background: #28453b; color: #e2f3e9; font-size: var(--text-small); box-shadow: 0 3px 10px #0004; }
 .chat-compose { flex: none; padding: 10px 24px 12px; border-top: 1px solid #30383f; }
 .chat-input-row { display: flex; align-items: stretch; gap: 8px; }
@@ -45,7 +51,6 @@
 }
 @media (max-width: 480px) {
   .chat-header, .chat-log, .chat-compose { padding-inline: 12px; }
-  .chat-header h2 > span { font-size: .75rem; }
   .chat-send { padding-inline: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {

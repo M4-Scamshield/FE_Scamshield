@@ -7,4 +7,7 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   receivedAt: number;
+  /** 없으면 전체 메시지, 있으면 지정된 참가자에게만 보내는 개인 메시지. */
+  recipientId?: string;
+  recipientName?: string;
 }

@@ -101,6 +101,57 @@ test("chat leaves the safety panel unchanged, restores focus, and preserves draf
   await page.screenshot({ path: "test-results/chat-mobile.png", fullPage: true });
 });
 
+test("private messages reach only the selected participant and never fall back to broadcasting", async ({ page, context }) => {
+  await join(page, "나");
+  const other = await context.newPage();
+  await join(other, "같은 이름");
+  const third = await context.newPage();
+  await join(third, "같은 이름");
+  for (const target of [page, other, third]) await openChat(target);
+  const recipient = page.getByRole("combobox", { name: "채팅 받는 사람" });
+  await recipient.selectOption("participant-2");
+  await send(page, "A에게만 보내는 메시지");
+  await expect(other.getByRole("log")).toContainText("A에게만 보내는 메시지");
+  await expect(other.locator(".chat-message[data-private] .chat-audience")).toHaveText("나에게 · 개인 메시지");
+  await expect(page.locator(".chat-message[data-private] .chat-audience")).toHaveText("같은 이름에게 · 개인 메시지");
+  await expect(third.locator(".chat-message")).toHaveCount(0);
+  await expect(third.locator(".chat-unread")).toHaveCount(0);
+  await recipient.selectOption("participant-3");
+  await send(page, "B에게만 보내는 메시지");
+  await expect(third.getByRole("log")).toContainText("B에게만 보내는 메시지");
+  await expect(other.locator(".chat-message")).toHaveCount(1);
+
+  await other.getByRole("combobox", { name: "채팅 받는 사람" }).selectOption("participant-1");
+  await page.getByRole("textbox", { name: "채팅 메시지 입력" }).press("Escape");
+  await send(other, "개인 답장");
+  await expect(page.locator(".chat-unread")).toHaveText("1");
+  await expect(third.locator(".chat-message")).toHaveCount(1);
+  await openChat(page);
+  await expect(page.getByRole("log")).toContainText("개인 답장");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({ path: "test-results/chat-private.png", fullPage: true, animations: "disabled" });
+
+  await third.getByRole("button", { name: "통화 나가기" }).click();
+  await expect(page.getByTestId("person-participant-3")).toHaveCount(0);
+  await expect(recipient).toHaveValue("participant-3");
+  await expect(recipient.locator("option:checked")).toContainText("퇴장");
+  const input = page.getByRole("textbox", { name: "채팅 메시지 입력" });
+  await input.fill("퇴장한 사람에게 작성 중인 내용");
+  await expect(page.getByRole("button", { name: "전송", exact: true })).toBeDisabled();
+  await input.press("Enter");
+  await expect(page.locator(".chat-error")).toContainText("받는 사람을 다시 선택");
+  await expect(input).toHaveValue("퇴장한 사람에게 작성 중인 내용");
+  await expect(other.locator(".chat-message")).toHaveCount(2);
+  // UI를 우회해도 사라진 개인 수신자에게 보낸 메시지가 전체로 전환되지 않는다.
+  expect(await page.evaluate(() => {
+    try { (window as any).__call.sendChat("전체로 전송되면 안 됨", "participant-3"); return false; }
+    catch { return true; }
+  })).toBe(true);
+  await recipient.selectOption("");
+  await send(page, "다시 전체 메시지");
+  await expect(other.getByRole("log")).toContainText("다시 전체 메시지");
+});
+
 test("chat height can be dragged and keyboard adjusted without moving the safety panel", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });

@@ -2,23 +2,28 @@ import { useEffect, useRef, useState } from "react";
 import { ChatIcon, CloseIcon } from "../common/icons";
 import { CHAT_MAX_LENGTH, type ChatMessage } from "../../types/chat";
 import { useChatResize } from "../../hooks/call/useChatResize";
+import type { PeerView } from "../../services/webrtc/MeshClient";
 import "./ChatPanel.css";
 
 interface ChatPanelProps {
   open: boolean;
   messages: ChatMessage[];
   selfId?: string;
+  peers: PeerView[];
   ready: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string, recipientId?: string) => void;
   onClose: () => void;
 }
 
 const clock = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" });
 
-export function ChatPanel({ open, messages, selfId, ready, onSend, onClose }: ChatPanelProps) {
+export function ChatPanel({ open, messages, selfId, peers, ready, onSend, onClose }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [newMessages, setNewMessages] = useState(false);
+  const [recipient, setRecipient] = useState<{ id: string; name: string } | null>(null);
+  const selectedPeer = recipient ? peers.find((peer) => peer.info.id === recipient.id) : undefined;
+  const canSend = recipient ? !!selectedPeer?.chatReady : ready;
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -49,9 +54,13 @@ export function ChatPanel({ open, messages, selfId, ready, onSend, onClose }: Ch
   }, [messages, open, selfId]);
 
   const send = () => {
-    if (!ready || !draft.trim()) return;
+    if (!draft.trim()) return;
+    if (!canSend) {
+      setError(recipient && !selectedPeer ? "선택한 참가자가 통화를 나갔어요. 받는 사람을 다시 선택해 주세요." : "참가자와 채팅 연결을 기다리고 있어요. 잠시 후 다시 보내 주세요.");
+      return;
+    }
     try {
-      onSend(draft);
+      onSend(draft, recipient?.id);
       setDraft("");
       setError(null);
       inputRef.current?.focus();
@@ -77,7 +86,17 @@ export function ChatPanel({ open, messages, selfId, ready, onSend, onClose }: Ch
         }}>
           <div className="chat-resize-handle" {...separatorProps} title="드래그하거나 위·아래 방향키로 높이 조절"><span aria-hidden="true" /></div>
           <div className="chat-header">
-            <h2 id="call-chat-title"><ChatIcon />채팅<span>모든 참가자에게</span></h2>
+            <h2 id="call-chat-title"><ChatIcon />채팅</h2>
+            <select className="chat-recipient" aria-label="채팅 받는 사람" value={recipient?.id ?? ""}
+              onChange={(event) => {
+                const peer = peers.find((item) => item.info.id === event.target.value);
+                setRecipient(peer ? { id: peer.info.id, name: peer.info.name } : null);
+                setError(null);
+              }}>
+              <option value="">모든 참가자</option>
+              {peers.map((peer, index) => <option key={peer.info.id} value={peer.info.id}>{peer.info.name}{peers.filter((item) => item.info.name === peer.info.name).length > 1 ? ` (${peers.slice(0, index + 1).filter((item) => item.info.name === peer.info.name).length})` : ""} · 개인</option>)}
+              {recipient && !selectedPeer && <option value={recipient.id} disabled>{recipient.name} (퇴장) · 개인</option>}
+            </select>
             <button type="button" className="chat-close" onClick={onClose} aria-label="채팅 닫기" title="채팅 닫기"><CloseIcon /></button>
           </div>
           <div className="chat-log-wrap">
@@ -88,8 +107,10 @@ export function ChatPanel({ open, messages, selfId, ready, onSend, onClose }: Ch
                 if (atBottom.current) setNewMessages(false);
               }}>
               {messages.map((message) => (
-                <article key={`${message.senderId}-${message.id}`} className="chat-message" data-self={message.senderId === selfId}>
-                  <div className="chat-message-meta"><strong>{message.senderName}{message.senderId === selfId ? " (나)" : ""}</strong><time dateTime={new Date(message.receivedAt).toISOString()}>{clock.format(message.receivedAt)}</time></div>
+                <article key={`${message.senderId}-${message.id}`} className="chat-message" data-self={message.senderId === selfId} data-private={message.recipientId !== undefined || undefined}>
+                  <div className="chat-message-meta"><strong>{message.senderName}{message.senderId === selfId ? " (나)" : ""}</strong>
+                    <span className="chat-audience">{message.recipientId !== undefined ? `${message.senderId === selfId ? `${message.recipientName ?? "참가자"}에게` : "나에게"} · 개인 메시지` : "전체"}</span>
+                    <time dateTime={new Date(message.receivedAt).toISOString()}>{clock.format(message.receivedAt)}</time></div>
                   <p>{message.text}</p>
                 </article>
               ))}
@@ -106,7 +127,7 @@ export function ChatPanel({ open, messages, selfId, ready, onSend, onClose }: Ch
                     send();
                   }
                 }} />
-              <button type="submit" className="chat-send" disabled={!ready || !draft.trim()}>전송</button>
+              <button type="submit" className="chat-send" disabled={!canSend || !draft.trim()}>전송</button>
             </div>
             <div id="chat-input-hint" className="chat-input-hint"><span>{draft.length.toLocaleString()} / {CHAT_MAX_LENGTH.toLocaleString()}</span></div>
             {error && <p className="chat-error" role="alert">{error}</p>}
