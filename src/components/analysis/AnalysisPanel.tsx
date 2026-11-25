@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { AnalysisAlert, TacticFinding, TranscriptLine, useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
+import { EvidenceList } from "./EvidenceList";
 
 const receiptTimeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 
@@ -48,7 +49,7 @@ export function AnalysisPanel({
     if (seqs.length === 0) return;
     showLines(seqs, onRevealTranscript);
     const line = lines.find((line) => line.seq === seqs[0]);
-    if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
+    if (line) onSelectSpeaker(line.trackId);
   };
   const [view, setView] = useState<"risk" | "findings">("risk");
   const [seenFindings, setSeenFindings] = useState<string | null>(null);
@@ -149,12 +150,12 @@ export function AnalysisPanel({
             <ul className="tactic-list" data-testid="analysis-tactics">
               {findings.map((f) => (
                 <TacticItem
-                  key={f.code} finding={f} names={names}
+                  key={f.code} finding={f} names={names} lines={lines}
                   open={openTactics[f.code] ?? f.code === findings[0].code}
                   fresh={freshCodes.has(f.code)}
                   seenAt={firstSeen.get(f.code)}
                   onToggle={() => setOpenTactics((prev) => ({ ...prev, [f.code]: !(prev[f.code] ?? f.code === findings[0].code) }))}
-                  onShowEvidence={() => showEvidence(f.evidenceSeqs)}
+                  onShowEvidence={(seq) => showEvidence([seq])}
                 />
               ))}
             </ul>
@@ -203,14 +204,14 @@ function ReasonCard({ warning, reason, names, lines, onSelectSpeaker, onRevealTr
   return <article className="why" data-latest={latest || undefined} data-testid={latest ? "analysis-reason" : "analysis-history-reason"}>
     <div className="why-heading">
       <p className="why-title">{latest ? "AI 판단 근거" : `${warning.level === "WARN" ? "위험 감지" : "주의 감지"} · 위험도 ${warning.score}`}</p>
-      {evidenceSeqs.length > 0 && <button className="why-link" type="button" onClick={() => {
-        showLines(evidenceSeqs, onRevealTranscript);
-        const line = lines.find((line) => line.seq === evidenceSeqs[0]);
-        if (line?.kind === "SPEECH") onSelectSpeaker(line.trackId);
-      }}>근거가 된 말 {evidenceSeqs.length}개 보기</button>}
     </div>
     <ResultTime receivedAt={warning.receivedAt} latest={latest} />
     <p className="why-text">{summary ? withName(summary, names) : "상세 판단 근거를 기다리고 있어요."}</p>
+    <EvidenceList seqs={evidenceSeqs} lines={lines} names={names} onSelect={(seq) => {
+      showLines([seq], onRevealTranscript);
+      const line = lines.find((line) => line.seq === seq);
+      if (line) onSelectSpeaker(line.trackId);
+    }} />
   </article>;
 }
 
@@ -245,6 +246,7 @@ function showLines(seqs: number[], onRevealTranscript: () => void) {
 function TacticItem({
   finding,
   names,
+  lines,
   open,
   fresh,
   seenAt,
@@ -253,11 +255,12 @@ function TacticItem({
 }: {
   finding: TacticFinding;
   names: Map<string, string>;
+  lines: TranscriptLine[];
   open: boolean;
   fresh: boolean;
   seenAt?: number;
   onToggle: () => void;
-  onShowEvidence: () => void;
+  onShowEvidence: (seq: number) => void;
 }) {
   const bodyId = `tactic-${finding.code}`;
   // 점수 몫으로 무게를 나눈다: 40 = 돈·정보·이동 요구, 25 = 고립, 10 = 분위기 조성
@@ -275,9 +278,7 @@ function TacticItem({
           {seenAt !== undefined && <ResultTime receivedAt={seenAt} />}
           <p className="tactic-reason">{finding.reason ? withName(finding.reason, names) : "판단 근거가 아직 없어요."}</p>
           {finding.message && <p className="tactic-advice"><span>대응</span>{withName(finding.message, names)}</p>}
-          {finding.evidenceSeqs.length > 0 && (
-            <button className="why-link" type="button" onClick={onShowEvidence}>근거가 된 말 {finding.evidenceSeqs.length}개 보기</button>
-          )}
+          <EvidenceList seqs={finding.evidenceSeqs} lines={lines} names={names} onSelect={onShowEvidence} />
         </div>
       </div>
     </li>

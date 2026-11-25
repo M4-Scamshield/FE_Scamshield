@@ -83,7 +83,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     setChatOpen(false);
     chatButtonRef.current?.focus({ preventScroll: true });
   };
-  const [speakerHighlight, setSpeakerHighlight] = useState<{ trackId: string; pulse: number } | null>(null);
+  const [speakerHighlight, setSpeakerHighlight] = useState<{ trackId: string; pulse: number; scrollToTile: boolean } | null>(null);
   const [soundMenuTarget, setSoundMenuTarget] = useState<SoundMenuTarget | null>(null);
   const closeSoundMenu = useCallback(() => setSoundMenuTarget(null), []);
   const soundMenuIsMe = soundMenuTarget?.participantId === joined?.self.id;
@@ -112,18 +112,23 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
       return;
     }
     const frame = requestAnimationFrame(() => {
-      document.getElementById(`participant-${speakerHighlight.trackId}`)?.scrollIntoView({
-        block: "nearest", inline: "nearest",
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
-      });
+      if (speakerHighlight.scrollToTile) {
+        document.getElementById(`participant-${speakerHighlight.trackId}`)?.scrollIntoView({
+          block: "nearest", inline: "nearest",
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        });
+      }
     });
     const timer = setTimeout(() => setSpeakerHighlight(null), 10000);
     return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
   }, [speakerHighlight, analysis.status, highlightedSpeakerIsLive]);
 
-  const highlightSpeaker = (trackId: string) => {
-    if (!liveTracks.has(trackId) || analysis.status !== "on") return;
-    setSpeakerHighlight((previous) => ({ trackId, pulse: (previous?.pulse ?? 0) + 1 }));
+  const highlightSpeaker = (trackId: string, scrollToTile = true) => {
+    if (!liveTracks.has(trackId) || analysis.status !== "on") {
+      setSpeakerHighlight(null);
+      return;
+    }
+    setSpeakerHighlight((previous) => ({ trackId, pulse: (previous?.pulse ?? 0) + 1, scrollToTile }));
   };
   // 전사의 trackId(= 참가자 id) → 이름. 나간 사람의 말도 이름으로 남도록 지우지 않고 쌓는다
   const names = useRef(new Map<string, string>([["USER", "내 입력"]]));
@@ -273,7 +278,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
         <div className="safety-content">
           <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
-            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={highlightSpeaker} onRevealTranscript={revealTranscript}
+            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={(trackId) => highlightSpeaker(trackId, false)} onRevealTranscript={revealTranscript}
               statusIndicator={<div className="watch-status" role="status" data-testid="watch">
                 <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
               </div>}
