@@ -73,6 +73,17 @@ export const PanelIcon = () => (
   </svg>
 );
 
+export const ChatIcon = () => (
+  <svg {...svg}>
+    <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z" />
+    <path d="M7 9h9M7 13h6" />
+  </svg>
+);
+
+export const CloseIcon = () => (
+  <svg {...svg}><path d="m6 6 12 12M18 6 6 18" /></svg>
+);
+
 export const SpeakerIcon = () => (
   <svg {...svg}>
     <path d="m11 5-6 4H2v6h3l6 4V5Z" />

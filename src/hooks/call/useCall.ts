@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MeshClient, type CallStatus, type JoinedInfo, type PeerView } from "../../services/webrtc/MeshClient";
 import { useSoundSettings } from "./useSoundSettings";
+import { CHAT_HISTORY_LIMIT, type ChatMessage } from "../../types/chat";
 
 export interface JoinOptions {
   room: string;
@@ -19,6 +20,8 @@ export function useCall() {
   const [room, setRoom] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [camera, setCamera] = useState<MediaStream | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [incomingChatCount, setIncomingChatCount] = useState(0);
   const sound = useSoundSettings(peers);
   const microphoneVolumeRef = useRef(sound.microphoneVolume);
   microphoneVolumeRef.current = sound.microphoneVolume;
@@ -42,15 +45,23 @@ export function useCall() {
     setMuted(false);
     setPeers([]);
     setJoined(null);
+    setMessages([]);
+    setIncomingChatCount(0);
 
     const log = (line: string) => setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()}  ${line}`]);
 
+    let selfId = "";
     const client = new MeshClient(room, name, {
       onStatus: setStatus,
       onPeers: setPeers,
       onError: setError,
       onLog: log,
-      onJoined: setJoined,
+      onJoined: (info) => { selfId = info.self.id; setJoined(info); },
+      onChat: (message) => {
+        if (clientRef.current !== client) return;
+        setMessages((previous) => [...previous, message].slice(-CHAT_HISTORY_LIMIT));
+        if (message.senderId !== selfId) setIncomingChatCount((count) => count + 1);
+      },
     });
     clientRef.current = client;
     client.setMicrophoneVolume(microphoneVolumeRef.current);
@@ -71,6 +82,13 @@ export function useCall() {
     cleanup();
     setPeers([]);
     setJoined(null);
+    setMessages([]);
+    setIncomingChatCount(0);
+  }, []);
+
+  const sendChat = useCallback((text: string, recipientId?: string) => {
+    if (!clientRef.current) throw new Error("통화에 연결한 뒤 메시지를 보내 주세요.");
+    clientRef.current.sendChat(text, recipientId);
   }, []);
 
   const toggleCamera = useCallback(async () => {
@@ -93,5 +111,6 @@ export function useCall() {
   // 페이지를 떠날 때 정리
   useEffect(() => () => cleanup(), []);
 
-  return { status, room, joined, peers, muted, micStream, camera, logs, error, sound, start, hangup, toggleMute, toggleCamera };
+  const chatReady = !!joined && peers.length > 0 && peers.every((peer) => peer.chatReady);
+  return { status, room, joined, peers, muted, micStream, camera, logs, error, sound, messages, incomingChatCount, chatReady, sendChat, start, hangup, toggleMute, toggleCamera };
 }

@@ -296,6 +296,18 @@ main[data-view="call"] .log { max-height: 100px; }
 .reason-history-list { display: flex; flex-direction: column; gap: 18px; list-style: none; margin: 0; padding: 0 0 8px; }
 .why-text { margin: 0; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; font-weight: var(--weight-regular); }
 .why-link { align-self: flex-start; padding: 4px 0; background: none; color: #a14f2f; font-size: var(--text-small); text-decoration: underline; text-underline-offset: 3px; font-weight: var(--weight-medium); }
+.evidence-picker { min-width: 0; }
+.evidence-toggle { display: inline-flex; align-items: center; gap: 4px; }
+.evidence-toggle svg { flex: none; width: 16px; height: 16px; transition: transform .15s; }
+.evidence-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.evidence-options { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 6px 0 0; padding: 0; }
+.evidence-options button { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 100%; padding: 9px 10px; border: 1px solid #dedbd0; border-radius: 6px; background: #faf8f1; color: #344b40; text-align: left; }
+.evidence-options button:hover:not(:disabled) { border-color: #ba9b71; background: #f5eddf; }
+.evidence-options button[aria-pressed="true"] { border-color: #b58a55; background: #f5e8d5; box-shadow: inset 2px 0 #b58a55; }
+.evidence-options button:disabled { color: #7b8b82; cursor: wait; }
+.evidence-speaker { padding-right: 44px; font-size: .75rem; font-weight: var(--weight-semibold); color: #6b755e; }
+.evidence-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: var(--text-small); font-weight: var(--weight-regular); line-height: 1.6; }
+.evidence-selected { position: absolute; top: 9px; right: 10px; color: #946635; font-size: .75rem; }
 /* 위험 수법별 카드: 점수 몫이 무게(굵기·색)를 정한다. 펼치면 그 수법의 근거·대응·근거 발화만 보인다 */
 .why.tactics { gap: 4px; padding-left: 0; border-left: 0; }
 .tactic-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
@@ -328,11 +340,20 @@ main[data-view="call"] .log { max-height: 100px; }
 
 /* 대화의 화자 색은 참가자 타일과 일치시킨다. 위험 근거만 주황으로 강조한다. */
 .transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0; }
-.transcript-head { position: relative; flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e0e6e3; }
-.transcript-head::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 28px; height: 2px; background: #93b6a6; }
-.transcript-head .panel-section-title { padding-bottom: 0; border: 0; }
+.transcript-head { position: relative; flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid #e0e6e3; }
+.transcript-head .panel-section-title { flex: none; margin: 0; padding: 0; border: 0; }
 .transcript-head > span { color: #8b968f; font-size: .75rem; white-space: nowrap; }
 .transcript-count { display: inline-flex; align-items: center; gap: 6px; }
+.transcript-filters { flex: 1; min-width: 0; display: flex; align-items: baseline; overflow-x: auto; scrollbar-width: thin; }
+.transcript-filters button { position: relative; flex: none; display: inline-flex; align-items: baseline; gap: 4px; max-width: 140px; white-space: nowrap; padding: 0 10px 12px; border: 0; border-radius: 0; background: transparent; color: #7b8b82; font-size: var(--text-small); line-height: 1.5; }
+.transcript-filters .panel-section-title button { padding-left: 0; color: #62756b; }
+.transcript-filters > button::before { content: ""; position: absolute; left: 0; top: 4px; height: 12px; border-left: 1px solid #c9d6ce; }
+.transcript-filters button:hover { color: #285b40; }
+.transcript-filters button[aria-pressed="true"] { color: #285b40; font-weight: var(--weight-semibold); }
+.transcript-filters button[aria-pressed="true"]::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; background: #79a890; }
+.transcript-filters .panel-section-title button[aria-pressed="true"]::after { left: 0; }
+.transcript-filter-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.transcript-filter-left { flex: none; font-size: .75rem; font-weight: var(--weight-regular); opacity: .8; }
 .transcript[data-active="true"] .transcript-count::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #438e73; }
 .transcript-empty { flex: none; min-height: 148px; display: grid; place-content: center; margin: 0; padding: 24px 0; color: #7b8b82; font-size: .75rem; line-height: 1.8; text-align: center; }
 .transcript-empty-icon { display: block; width: 72px; height: 65px; margin: 0 auto 16px; color: #9ab7a8; }
@@ -385,6 +406,11 @@ main[data-view="call"] .log { max-height: 100px; }
   .meeting-toolbar { padding: 12px 18px; }
   .safety-content { padding: 16px; }
 }
+@media (min-width: 801px) and (max-width: 1000px) {
+  .meeting-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  .meeting-toolbar .controls { gap: 6px; }
+  .toolbar-people-label { display: none; }
+}
 @media (max-width: 800px) {
   main[data-view="call"] { height: auto; min-height: 100dvh; }
   .call-layout { height: auto; grid-template-columns: minmax(0, 1fr); }
@@ -429,6 +455,7 @@ main[data-view="call"] .log { max-height: 100px; }
   .toolbar-people { gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .evidence-toggle svg { transition: none; }
   .waiting-dots > span { animation: none !important; }
   .guardian-speech { animation: none; }
   .analysis-guardian * { animation: none !important; }

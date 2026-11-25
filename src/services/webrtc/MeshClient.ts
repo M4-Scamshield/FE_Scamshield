@@ -14,6 +14,7 @@
 
 import { getCallConfig } from "../../api/call/callApi";
 import { CloseCode, userMessage } from "../../types/protocol/errors";
+import { CHAT_MAX_LENGTH, type ChatMessage } from "../../types/chat";
 import type {
   ClientMessage,
   Participant as ParticipantInfo,
@@ -40,6 +41,7 @@ export interface PeerView {
   video: MediaStream | null;
   /** 상대가 자기 마이크를 음소거했는지 */
   muted: boolean;
+  chatReady: boolean;
 }
 
 export interface JoinedInfo {
@@ -55,11 +57,13 @@ export interface MeshEvents {
   /** 서버가 보낸 에러 (화면에 보여줄 문구) */
   onError: (message: string) => void;
   onLog: (line: string) => void;
+  onChat: (message: ChatMessage) => void;
 }
 
 interface Peer {
   info: ParticipantInfo;
   pc: RTCPeerConnection;
+  chat: RTCDataChannel;
   polite: boolean;
   makingOffer: boolean;
   ignoreOffer: boolean;
@@ -237,6 +241,28 @@ export class MeshClient {
     return Object.fromEntries([...this.peers].map(([id, p]) => [id, p.pc]));
   }
 
+  /** 통화와 같은 P2P 연결로 전송한다. 서버에 메시지 기록을 남기지 않는다. */
+  sendChat(text: string, recipientId?: string): void {
+    const body = text.trim();
+    if (!body || body.length > CHAT_MAX_LENGTH) throw new Error(`메시지는 1~${CHAT_MAX_LENGTH}자까지 보낼 수 있어요.`);
+    const recipient = recipientId === undefined ? undefined : this.peers.get(recipientId);
+    if (recipientId !== undefined && !recipient) throw new Error("선택한 참가자가 통화를 나갔어요. 받는 사람을 다시 선택해 주세요.");
+    const peers = recipient ? [recipient] : [...this.peers.values()];
+    if (this.closed || !this.selfId || peers.length === 0 || peers.some((peer) => peer.chat.readyState !== "open")) {
+      throw new Error("참가자와 채팅 연결을 기다리고 있어요. 잠시 후 다시 보내 주세요.");
+    }
+    // 연결이 밀린 경우 입력을 유지하고 재시도를 안내한다.
+    if (peers.some((peer) => peer.chat.bufferedAmount > 64 * 1024)) {
+      throw new Error("메시지 전송이 지연되고 있어요. 잠시 후 다시 보내 주세요.");
+    }
+    const id = crypto.randomUUID();
+    const payload = JSON.stringify({ id, text: body, ...(recipient ? { recipientId: recipient.info.id } : {}) });
+    for (const peer of peers) peer.chat.send(payload);
+    this.events.onChat({ id, text: body, senderId: this.selfId, senderName: this.name, receivedAt: Date.now(),
+      ...(recipient ? { recipientId: recipient.info.id, recipientName: recipient.info.name } : {}),
+    });
+  }
+
   // ------------------------------------------------------------ signaling
 
   private onServer(msg: ServerMessage): void {
@@ -286,6 +312,8 @@ export class MeshClient {
     const peer: Peer = {
       info,
       pc,
+      // 양쪽에서 같은 채널 ID를 사용하므로 추가 시그널링 규약이 필요 없다.
+      chat: pc.createDataChannel("call-chat", { negotiated: true, id: 0 }),
       // ID 가 큰 쪽이 polite(양보), 작은 쪽이 처음 offer 를 만든다
       polite: this.selfId > info.id,
       makingOffer: false,
@@ -302,6 +330,27 @@ export class MeshClient {
       restartTimer: null,
     };
     this.peers.set(info.id, peer);
+
+    peer.chat.onopen = peer.chat.onclose = () => {
+      if (this.peers.get(info.id) === peer) this.emitPeers();
+    };
+    peer.chat.onmessage = ({ data }) => {
+      if (this.closed || this.peers.get(info.id) !== peer || typeof data !== "string" || data.length > CHAT_MAX_LENGTH * 6 + 512) return;
+      try {
+        const message: unknown = JSON.parse(data);
+        if (!message || typeof message !== "object" || !("id" in message) || !("text" in message)) return;
+        const { id, text } = message;
+        if (typeof id !== "string" || !id || id.length > 64 || typeof text !== "string" || !text.trim() || text.length > CHAT_MAX_LENGTH) return;
+        const recipientId = "recipientId" in message ? message.recipientId : undefined;
+        if (recipientId !== undefined && recipientId !== this.selfId) return;
+        // 발신자 정보는 메시지 본문이 아닌 연결된 참가자 정보에서 가져온다.
+        this.events.onChat({ id, text, senderId: info.id, senderName: info.name, receivedAt: Date.now(),
+          ...(typeof recipientId === "string" ? { recipientId, recipientName: this.name } : {}),
+        });
+      } catch {
+        // 잘못된 채팅 데이터가 통화 연결에 영향을 주지 않게 무시한다.
+      }
+    };
 
     // 내 마이크를 이 연결에 싣는다. 카메라가 켜져 있으면 영상도 싣고, 켜져 있다고 알린다
     this.localStream!.getTracks().forEach((t) => pc.addTrack(t, this.localStream!));
@@ -419,6 +468,8 @@ export class MeshClient {
     if (!peer) return;
     if (peer.restartTimer) clearTimeout(peer.restartTimer);
     peer.pc.onicecandidate = peer.pc.ontrack = peer.pc.onnegotiationneeded = peer.pc.onconnectionstatechange = null;
+    peer.chat.onopen = peer.chat.onclose = peer.chat.onmessage = null;
+    peer.chat.close();
     peer.pc.close();
     this.peers.delete(id);
     if (emit) this.emitPeers();
@@ -431,6 +482,7 @@ export class MeshClient {
       stream: p.remote,
       video: p.remoteCamera ? p.remoteVideo : null,
       muted: p.remoteMuted,
+      chatReady: p.chat.readyState === "open",
     }));
     this.events.onPeers(list);
     this.events.onStatus(overallStatus(list));

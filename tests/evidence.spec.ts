@@ -45,6 +45,100 @@ async function detect(page: Page) {
   await expect(page.locator("#line-2")).toBeVisible();
 }
 
+test("transcript filters by participant ID, receives new speech, and keeps departed speakers", async ({ page, context }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await join(page, "나");
+  const other = await context.newPage();
+  await join(other, "상대방");
+  const third = await context.newPage();
+  await join(third, "아직 말하지 않은 참가자");
+  const filters = page.getByRole("group", { name: "대화 기록 화자 필터" });
+  const heading = await page.getByRole("heading", { name: "대화 기록", exact: true }).boundingBox();
+  const filterBounds = await filters.boundingBox();
+  expect(filterBounds!.y).toBe(heading!.y);
+  await filters.getByRole("button", { name: "아직 말하지 않은 참가자", exact: true }).click();
+  await expect(page.getByTestId("transcript")).toContainText("이 참가자의 대화 기록이 없어요");
+  await filters.getByRole("button", { name: "대화 기록 전체", exact: true }).click();
+  await detect(page);
+  await filters.getByRole("button", { name: "상대방", exact: true }).click();
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(1);
+  await expect(page.locator("#line-2")).toBeVisible();
+  await expect(page.locator("#line-2")).toHaveAttribute("data-evidence", "true");
+  await page.evaluate(() => {
+    const source = (window as any).__testAnalysisEvents;
+    for (const line of [
+      { seq: 6, kind: "SPEECH", trackId: "participant-1", text: "다른 화자의 새 발화" },
+      { seq: 7, kind: "SPEECH", trackId: "participant-2", text: "선택한 화자의 새 발화" },
+    ]) source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({ ...line, eventSeq: line.seq + 1 }) }));
+    // 재전송된 이벤트를 중복해서 표시하지 않는다.
+    source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({ eventSeq: 8, seq: 7, kind: "SPEECH", trackId: "participant-2", text: "선택한 화자의 새 발화" }) }));
+  });
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(2);
+  await expect(page.locator("#line-7")).toHaveText(/선택한 화자의 새 발화/);
+  await expect(page.locator(".transcript-count")).toHaveText("2개 발화");
+  await other.getByRole("button", { name: "통화 나가기" }).click();
+  await expect(filters.getByRole("button", { name: "상대방 퇴장", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(2);
+  await page.screenshot({ path: "test-results/transcript-filter.png", fullPage: true });
+  await filters.getByRole("button", { name: "대화 기록 전체", exact: true }).click();
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(7);
+  await expect(page.locator("#line-4")).toContainText("사용자가 입력한 문자");
+});
+
+test("evidence shortcuts reveal speech hidden by the selected participant filter", async ({ page, context }) => {
+  await join(page, "같은 이름");
+  const other = await context.newPage();
+  await join(other, "같은 이름");
+  await detect(page);
+  const filters = page.getByRole("group", { name: "대화 기록 화자 필터" });
+  await filters.getByRole("button", { name: "같은 이름 (나)", exact: true }).click();
+  await expect(page.locator(".transcript-lines > li")).toHaveCount(1);
+  await expect(page.locator("#line-1")).toBeVisible();
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  await page.getByRole("button", { name: "근거가 된 말 4개 보기", exact: true }).click();
+  await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
+  await expect(filters.getByRole("button", { name: "대화 기록 전체", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#line-2")).toHaveClass(/flash/);
+  await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
+});
+
+test("evidence previews select each utterance independently and keep the transcript visible", async ({ page, context }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await join(page, "나");
+  const other = await context.newPage();
+  await join(other, "상대방");
+  await detect(page);
+  await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
+  const reason = page.getByTestId("analysis-reason");
+  const disclosure = reason.getByRole("button", { name: "근거가 된 말 4개 보기", exact: true });
+  await disclosure.click();
+  await expect(disclosure).toHaveAttribute("aria-expanded", "true");
+  const options = reason.getByRole("list", { name: "근거 발화 목록" }).getByRole("button");
+  await expect(options).toHaveCount(4);
+  await expect(options.first()).toContainText("상대방");
+  await expect(options.first()).toContainText("지금 안전계좌로 이체하세요.");
+  await expect(page.locator(".transcript-lines .flash")).toHaveCount(0);
+  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
+  for (const [index, seq] of [2, 1, 4, 5].entries()) {
+    await options.nth(index).click();
+    await expect(options.nth(index)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(`#line-${seq}`)).toHaveClass(/flash/);
+    await expect(page.locator(`#line-${seq}`)).toBeInViewport();
+    expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
+    if (seq === 2 || seq === 1) await expect(page.getByTestId(`person-participant-${seq}`)).toHaveAttribute("data-evidence-active", "true");
+    else await expect(page.locator(".person[data-evidence-active]")).toHaveCount(0);
+  }
+  await page.screenshot({ path: "test-results/evidence-options.png", fullPage: true, animations: "disabled" });
+  await disclosure.click();
+  await expect(reason.getByRole("list", { name: "근거 발화 목록" })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await disclosure.click();
+  await options.nth(1).click();
+  await expect(page.locator("#line-1")).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test("risk and findings switch without moving the conversation", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await join(page, "나");
@@ -87,6 +181,7 @@ test("evidence is available even when the warning explanation has not arrived", 
   const shortcut = reason.getByRole("button", { name: "근거가 된 말 1개 보기" });
   await expect(shortcut).toBeInViewport({ ratio: 1 });
   await shortcut.click();
+  await reason.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(page.locator("#line-1")).toHaveClass(/flash/);
   await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
 });
@@ -151,10 +246,12 @@ test("each risky tactic opens its own reason, advice and evidence lines", async 
   await older.getByRole("button", { name: /권위·절차 연출/ }).click();
   await expect(older.locator(".tactic-reason")).toHaveText("서울중앙지검이라며 수사기관을 내세웠어요.");
   await older.getByRole("button", { name: "근거가 된 말 1개 보기" }).click();
+  await older.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(page.locator("#line-1")).toHaveClass(/flash/);
   await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
   await newest.getByRole("button", { name: "근거가 된 말 2개 보기" }).click();
-  await expect(page.locator("#line-2")).toHaveClass(/flash/);
+  await newest.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").nth(1).click();
+  await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
   await expect(page.locator("#line-3")).toHaveClass(/flash/);
   await page.screenshot({ path: "test-results/tactics-panel-open.png", fullPage: true, animations: "disabled" });
 
@@ -219,6 +316,7 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   await expect(speaker).not.toHaveAttribute("data-evidence-active");
   await page.getByRole("button", { name: /분석 결과 및 대응 방안 보기/ }).click();
   await page.getByRole("button", { name: "근거가 된 말 4개 보기" }).click();
+  await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(speaker).toHaveAttribute("data-evidence-active", "true");
   await expect(page.locator("#line-2")).toHaveClass(/flash/);
   await page.waitForTimeout(9000);
@@ -376,6 +474,7 @@ test("long analysis keeps conversation visible and evidence navigation preserves
 
   // The evidence link still reveals an older line without pushing the transcript out of view.
   await page.getByRole("button", { name: "근거가 된 말 1개 보기", exact: true }).click();
+  await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(page.locator("#line-1")).toBeInViewport();
   await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
 
@@ -451,12 +550,14 @@ test.describe("judgment history", () => {
     await expect(original).toBeInViewport({ ratio: 1 });
     await expect(original.locator("time")).toHaveText("오후 3:24");
     await original.getByRole("button", { name: "근거가 된 말 4개 보기" }).click();
+    await original.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
     await expect(page.locator("#line-2")).toHaveClass(/flash/);
     await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await original.scrollIntoViewIfNeeded();
-    await expect(original).toBeInViewport({ ratio: 1 });
+    // 펼친 미리보기의 소수점 높이로 생기는 1px 미만의 경계 오차는 허용한다.
+    await expect(original).toBeInViewport({ ratio: 0.99 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.getByTestId("analysis").screenshot({ path: "test-results/judgment-history-mobile.png", animations: "disabled" });
     await page.getByRole("button", { name: "통화 위험도 보기", exact: true }).click();
