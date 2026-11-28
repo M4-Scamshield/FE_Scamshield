@@ -282,7 +282,7 @@ test("risk timeline records received scores, leaves failed polling gaps, and res
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test("high risk shows a compact nonblocking top banner with dismissal and gentle brightness changes", async ({ page }) => {
+test("high risk shows a compact nonblocking top banner with dismissal and a visible brightness pulse", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await join(page, "나");
   await expect.poll(() => page.evaluate(() => !!(window as any).__testAnalysisEvents)).toBe(true);
@@ -308,7 +308,24 @@ test("high risk shows a compact nonblocking top banner with dismissal and gentle
   await expect(banner.getByRole("button", { name: "탐지 중지", exact: true })).toHaveCount(0);
   expect(await page.getByTestId("people").boundingBox()).toEqual(galleryBefore);
   await expect(banner).toHaveCSS("animation-name", "call-risk-breathe");
-  await expect(banner).toHaveCSS("animation-duration", "3s");
+  await expect(banner).toHaveCSS("animation-duration", "2s");
+  const pulse = await banner.evaluate((element) => {
+    const animation = element.getAnimations()[0];
+    animation.pause();
+    const samples = [0, 1000, 2000].map((time) => {
+      animation.currentTime = time;
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, opacity: style.opacity, text: style.color };
+    });
+    animation.play();
+    return samples;
+  });
+  expect(pulse[0].background).not.toBe(pulse[1].background);
+  expect(pulse[2].background).toBe(pulse[0].background);
+  for (const sample of pulse) {
+    expect(sample.opacity).toBe("1");
+    expect(sample.text).toBe("rgb(255, 255, 255)");
+  }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(banner).toHaveCSS("animation-name", "none");
   await expect(banner.getByRole("button")).toHaveCount(1);
