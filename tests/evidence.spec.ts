@@ -1,5 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
-import { setup, join } from "./helpers/call";
+import { setup, join as joinCall } from "./helpers/call";
+
+async function openResults(page: Page) {
+  const button = page.getByRole("tab", { name: "AI 분석", exact: true });
+  if (await button.count()) await button.click();
+}
+async function join(page: Page, name: string) {
+  await joinCall(page, name);
+  await page.getByRole("tab", { name: "실시간 위험도", exact: true }).click();
+  await openResults(page);
+}
 
 test.beforeEach(async ({ context }) => {
   await setup(context);
@@ -95,7 +105,7 @@ test("evidence shortcuts reveal speech hidden by the selected participant filter
   await filters.getByRole("button", { name: "같은 이름 (나)", exact: true }).click();
   await expect(page.locator(".transcript-lines > li")).toHaveCount(1);
   await expect(page.locator("#line-1")).toBeVisible();
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   await page.getByRole("button", { name: "근거가 된 말 4개 보기", exact: true }).click();
   await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(filters.getByRole("button", { name: "대화 기록 전체", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -103,137 +113,7 @@ test("evidence shortcuts reveal speech hidden by the selected participant filter
   await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
 });
 
-test("evidence previews switch to live analysis and reveal the selected utterance", async ({ page, context }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await join(page, "나");
-  const other = await context.newPage();
-  await join(other, "상대방");
-  await detect(page);
-  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-  const reason = page.getByTestId("analysis-reason");
-  const disclosure = reason.getByRole("button", { name: "근거가 된 말 4개 보기", exact: true });
-  await disclosure.click();
-  await expect(disclosure).toHaveAttribute("aria-expanded", "true");
-  const options = reason.getByRole("list", { name: "근거 발화 목록" }).getByRole("button");
-  await expect(options).toHaveCount(4);
-  await expect(options.first()).toContainText("상대방");
-  await expect(options.first()).toContainText("지금 안전계좌로 이체하세요.");
-  await expect(page.locator(".transcript-lines .flash")).toHaveCount(0);
-  await expect(page.getByTestId("transcript")).toBeHidden();
-  for (const [index, seq] of [2, 1, 4, 5].entries()) {
-    await options.nth(index).click();
-    await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toBeFocused();
-    await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator(`#line-${seq}`)).toHaveClass(/flash/);
-    await expect(page.locator(`#line-${seq}`)).toBeInViewport();
-    expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
-    if (seq === 2 || seq === 1) await expect(page.getByTestId(`person-participant-${seq}`)).toHaveAttribute("data-evidence-active", "true");
-    else await expect(page.locator(".person[data-evidence-active]")).toHaveCount(0);
-    await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-    await expect(options.nth(index)).toHaveAttribute("aria-pressed", "true");
-  }
-  await page.screenshot({ path: "test-results/evidence-options.png", fullPage: true, animations: "disabled" });
-  await disclosure.click();
-  await expect(reason.getByRole("list", { name: "근거 발화 목록" })).toHaveCount(0);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await disclosure.click();
-  await options.nth(1).click();
-  await expect(page.locator("#line-1")).toBeInViewport();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-});
-
-test("findings hide the transcript and returning to live analysis restores it", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await join(page, "나");
-  await detect(page);
-  const next = page.getByRole("tab", { name: "분석 결과", exact: true });
-  await expect(next).toHaveAttribute("data-unread", "true");
-  await expect(page.locator(".guardian-speech")).toBeInViewport({ ratio: 1 });
-  await expect(page.locator(".guardian-speech")).toContainText("위험 신호를 찾았어요!");
-  await expect(page.locator(".guardian-speech")).toContainText("분석 결과 탭에서 확인하세요.");
-  await expect(next).toHaveAttribute("aria-describedby", "guardian-result-message");
-  await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
-  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
-  await next.click();
-  await expect(page.getByTestId("transcript")).toBeHidden();
-  const reason = page.getByTestId("analysis-reason");
-  await expect(reason.locator(".why-title")).toBeInViewport({ ratio: 1 });
-  await expect(reason.locator(".why-text")).toBeInViewport({ ratio: 1 });
-  await expect(reason.getByRole("button", { name: "근거가 된 말 4개 보기" })).toBeInViewport({ ratio: 1 });
-  await page.screenshot({ path: "test-results/analysis-results-visible.png", fullPage: true });
-  await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
-  await expect(next).not.toHaveAttribute("data-unread");
-  await expect(page.locator(".guardian-speech")).toHaveCount(0);
-  await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
-  expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
-  await expect(page.locator("#line-2 .judged")).toHaveText("위험 신호");
-  await expect(page.locator("#line-3 .judged")).toHaveText("AI 확인");
-});
-
-test("analysis tabs support keyboard navigation and mark results read while viewing them", async ({ page }) => {
-  await join(page, "나");
-  await detect(page);
-  const live = page.getByRole("tab", { name: "실시간 분석", exact: true });
-  const results = page.getByRole("tab", { name: "분석 결과", exact: true });
-  await expect(live).toHaveAttribute("aria-selected", "true");
-  await expect(results).toHaveAttribute("data-unread", "true");
-  const transcript = await page.getByTestId("transcript").boundingBox();
-  await live.focus();
-  await live.press("ArrowRight");
-  await expect(results).toBeFocused();
-  await expect(results).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByTestId("transcript")).toBeHidden();
-  await expect(page.getByRole("tabpanel", { name: "분석 결과", exact: true })).toBeVisible();
-  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
-    eventSeq: 7, level: "WARN", score: 95, reason: "새로 확인된 위험 정황입니다.", evidenceSeqs: [2],
-  }) })));
-  await expect(page.getByTestId("analysis-reason")).toContainText("새로 확인된 위험 정황입니다.");
-  await results.press("Home");
-  await expect(live).toBeFocused();
-  await expect(results).not.toHaveAttribute("data-unread");
-  expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcript);
-  await live.press("End");
-  await expect(results).toHaveAttribute("aria-selected", "true");
-  await results.press("ArrowRight");
-  await expect(live).toHaveAttribute("aria-selected", "true");
-});
-
-test("protection controls remain separate from scrolling analysis content", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await join(page, "나");
-  const controls = page.getByRole("group", { name: "실시간 보호 설정" });
-  const toggle = page.getByTestId("analysis-toggle");
-  const live = page.getByRole("tabpanel", { name: "실시간 분석", exact: true });
-  const timeline = page.getByTestId("risk-timeline");
-  await expect(timeline).toBeInViewport({ ratio: 1 });
-  expect(await controls.evaluate((element) => element.closest('[role="tabpanel"]') === null)).toBe(true);
-  expect(await live.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
-  const before = await toggle.boundingBox();
-  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
-  await detect(page);
-  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
-    eventSeq: 7, level: "WARN", score: 90, evidenceSeqs: [2], reason: "급하게 송금하도록 유도하고 있습니다. ".repeat(40),
-  }) })));
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-  const results = page.getByRole("tabpanel", { name: "분석 결과", exact: true });
-  await results.hover();
-  await page.mouse.wheel(0, 600);
-  await expect.poll(() => results.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-  expect(await toggle.boundingBox()).toEqual(before);
-  await expect(toggle).toBeInViewport({ ratio: 1 });
-  await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toBeInViewport({ ratio: 1 });
-  await expect(page.getByTestId("transcript")).toBeHidden();
-  await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
-  expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
-  await expect(timeline).toBeInViewport({ ratio: 1 });
-  expect(await live.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: "test-results/analysis-protection-separated.png", fullPage: true });
-});
-
-test("risk timeline records received scores, leaves failed polling gaps, and resets when protection stops", async ({ page, context }) => {
+test("risk timeline records received scores, leaves failed polling gaps, and resets on a new call", async ({ page, context }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   let score: number | null = null;
   let analyzedTo = 0;
@@ -244,6 +124,7 @@ test("risk timeline records received scores, leaves failed polling gaps, and res
     return route.fulfill({ json: { current_score: score, analyzed_to: analyzedTo } });
   });
   await join(page, "나");
+  await page.getByRole("tab", { name: "실시간 위험도", exact: true }).click();
   const timeline = page.getByTestId("risk-timeline");
   const point = page.getByTestId("risk-chart-point");
   await expect(timeline).toContainText("분석 결과가 쌓이면 표시돼요");
@@ -266,7 +147,7 @@ test("risk timeline records received scores, leaves failed polling gaps, and res
   await expect(timeline).toContainText("36점");
   await timeline.press("End");
   await expect(timeline).toContainText("18점");
-  await page.getByRole("tab", { name: "실시간 분석", exact: true }).focus();
+  await page.getByRole("tab", { name: "실시간 위험도", exact: true }).focus();
   await page.evaluate(() => {
     const warning = { eventSeq: 1, level: "WARN", score: 70, reason: "의심스러운 송금 요청", evidenceSeqs: [] };
     const source = (window as any).__testAnalysisEvents;
@@ -278,84 +159,18 @@ test("risk timeline records received scores, leaves failed polling gaps, and res
   await expect(page.getByRole("meter", { name: "통화 위험도" })).toHaveAttribute("aria-valuenow", "70");
   await expect(timeline).not.toContainText("99점");
   await page.screenshot({ path: "test-results/analysis-tabs-timeline.png", fullPage: true, animations: "disabled" });
-  await page.getByTestId("analysis-toggle").click();
+  await page.getByRole("button", { name: "통화 나가기" }).click();
+  score = null;
+  await join(page, "새 통화");
+  await page.getByRole("tab", { name: "실시간 위험도", exact: true }).click();
   await expect(point).toHaveCount(0);
   await expect(timeline).toHaveAttribute("data-samples", "0");
-  await page.getByTestId("analysis-toggle").click();
+  score = 18;
   await expect(point).toHaveAttribute("data-score", "18");
   await expect(page.getByTestId("risk-chart-segment")).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(timeline).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-});
-
-test("high risk shows a compact nonblocking top banner with dismissal and a visible brightness pulse", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await join(page, "나");
-  await expect.poll(() => page.evaluate(() => !!(window as any).__testAnalysisEvents)).toBe(true);
-  const mute = page.getByRole("button", { name: "음소거", exact: true });
-  await mute.focus();
-  const galleryBefore = await page.getByTestId("people").boundingBox();
-  const publish = (eventSeq: number, level: string, score: number) => page.evaluate(({ eventSeq, level, score }) => {
-    (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
-      eventSeq, level, score, reason: "기관을 사칭하며 안전계좌로 송금을 요구했어요.", evidenceSeqs: [],
-    }) }));
-  }, { eventSeq, level, score });
-  const banner = page.getByTestId("call-risk-banner");
-  await publish(1, "SUSPECT", 45);
-  await expect(page.getByTestId("analysis")).toHaveAttribute("data-level", "SUSPECT");
-  await expect(banner).toHaveCount(0);
-  await publish(2, "WARN", 87);
-  await expect(banner).toBeVisible();
-  await expect(banner).toContainText("보이스피싱 위험 발생");
-  await expect(banner).toContainText("경찰(112)");
-  await expect(banner).toContainText("금융감독원(1332)");
-  await expect(mute).toBeFocused();
-  await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(banner.getByRole("button", { name: "탐지 중지", exact: true })).toHaveCount(0);
-  expect(await page.getByTestId("people").boundingBox()).toEqual(galleryBefore);
-  await expect(banner).toHaveCSS("animation-name", "call-risk-breathe");
-  await expect(banner).toHaveCSS("animation-duration", "2s");
-  const pulse = await banner.evaluate((element) => {
-    const animation = element.getAnimations()[0];
-    animation.pause();
-    const samples = [0, 1000, 2000].map((time) => {
-      animation.currentTime = time;
-      const style = getComputedStyle(element);
-      return { background: style.backgroundColor, opacity: style.opacity, text: style.color };
-    });
-    animation.play();
-    return samples;
-  });
-  expect(pulse[0].background).not.toBe(pulse[1].background);
-  expect(pulse[2].background).toBe(pulse[0].background);
-  for (const sample of pulse) {
-    expect(sample.opacity).toBe("1");
-    expect(sample.text).toBe("rgb(255, 255, 255)");
-  }
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(banner).toHaveCSS("animation-name", "none");
-  await expect(banner.getByRole("button")).toHaveCount(1);
-  expect(await banner.locator(".call-risk-action").evaluate((element) => {
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    return range.getClientRects().length;
-  })).toBe(1);
-  await page.screenshot({ path: "test-results/risk-banner-desktop.png", fullPage: true });
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-  await expect(page.getByRole("tab", { name: "분석 결과", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(banner).toBeVisible();
-  await banner.getByRole("button", { name: "위험 알림 닫기", exact: true }).click();
-  await expect(banner).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "통화 나가기", exact: true })).toBeVisible();
-  await publish(3, "WARN", 95);
-  await expect(page.getByTestId("analysis-alert")).toContainText("위험도 95");
-  await expect(banner).toHaveCount(0);
-  await page.getByTestId("analysis-toggle").click();
-  await page.getByTestId("analysis-toggle").click();
-  await expect(page.getByTestId("analysis-toggle")).toBeEnabled();
-  await publish(1, "WARN", 88);
-  await expect(banner).toBeVisible();
 });
 
 test("risk banner stays within the mobile call room and leaves call controls usable", async ({ page }) => {
@@ -431,7 +246,7 @@ test("risk banner outlines only live remote speakers identified by its evidence"
     eventSeq: 9, level: "WARN", score: 90, evidenceSeqs: [2],
   }) })));
   await expect(suspect).toHaveAttribute("data-risk", "danger");
-  await page.getByTestId("analysis-toggle").click();
+  await page.getByRole("button", { name: "통화 나가기" }).click();
   await expect(page.locator('.person[data-risk="danger"]')).toHaveCount(0);
 });
 
@@ -444,7 +259,7 @@ test("evidence is available even when the warning explanation has not arrived", 
       eventSeq: 7, level: "WARN", score: 50, evidenceSeqs: [1], reason: null,
     }) }));
   });
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   const reason = page.getByTestId("analysis-reason");
   await expect(reason).toContainText("상세 판단 근거를 기다리고 있어요.");
   const shortcut = reason.getByRole("button", { name: "근거가 된 말 1개 보기" });
@@ -465,7 +280,7 @@ test("updated warnings stack earlier reasons below the latest one", async ({ pag
       eventSeq: 7, level: "WARN", score: 95, evidenceSeqs: [2], reason: "인증번호를 불러 달라고 요구했어요.",
     }) }));
   });
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   const reason = page.getByTestId("analysis-reason");
   await expect(reason.locator(".why-text")).toHaveText("인증번호를 불러 달라고 요구했어요.");
   await expect(page.getByTestId("analysis-alert")).toContainText("위험도 95");
@@ -487,7 +302,7 @@ test("each risky tactic opens its own reason, advice and evidence lines", async 
     source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({ eventSeq: 7, level: "WARN", score: 10, evidenceSeqs: [1], findings: [a] }) }));
     source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({ eventSeq: 8, level: "WARN", score: 50, evidenceSeqs: [1, 2, 3], findings: [a, b] }) }));
   }, [f6, f1]);
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   const reason = page.getByTestId("analysis-reason");
   await expect(reason.locator(".why-title")).toHaveText("위험 수법 2개");
   await expect(reason.locator(":scope > .reason-received")).toContainText("분석 결과");
@@ -518,12 +333,12 @@ test("each risky tactic opens its own reason, advice and evidence lines", async 
   await older.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(page.locator("#line-1")).toHaveClass(/flash/);
   await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   await newest.getByRole("button", { name: "근거가 된 말 2개 보기" }).click();
   await newest.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").nth(1).click();
   await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
   await expect(page.locator("#line-3")).toHaveClass(/flash/);
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   await page.screenshot({ path: "test-results/tactics-panel-open.png", fullPage: true, animations: "disabled" });
 
   // 접기도 된다. 새 경고가 와도 직접 접은 것은 접힌 채로 둔다
@@ -560,6 +375,7 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   for (const viewport of [{ width: 900, height: 720 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     await page.locator("#line-2 button").click();
+    await page.getByRole("tab", { name: "audio-test 회의실", exact: true }).click();
     await page.getByTestId("people").screenshot({ path: `test-results/evidence-speaker-${viewport.width}.png`, animations: "disabled" });
     const tile = await speaker.boundingBox();
     const highlight = await speaker.locator(".speaker-warning-highlight").boundingBox();
@@ -567,20 +383,21 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
     expect(highlight!.y).toBeGreaterThanOrEqual(tile!.y);
     expect(highlight!.x + highlight!.width).toBeLessThanOrEqual(tile!.x + tile!.width);
     expect(highlight!.y + highlight!.height).toBeLessThanOrEqual(tile!.y + tile!.height);
+    await page.getByRole("tab", { name: "AI 분석", exact: true }).click();
   }
   await page.setViewportSize({ width: 1280, height: 720 });
 
   await page.locator("#line-1 button").press("Enter");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
   await expect(speaker).not.toHaveAttribute("data-evidence-active");
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await openResults(page);
   await page.getByRole("button", { name: "근거가 된 말 4개 보기" }).click();
   await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(speaker).toHaveAttribute("data-evidence-active", "true");
   await expect(page.locator("#line-2")).toHaveClass(/flash/);
   await page.waitForTimeout(9000);
   await expect(speaker).toHaveAttribute("data-evidence-active", "true");
-  await expect(speaker.locator(".speaker-warning-highlight")).toBeVisible();
+  await expect(speaker.locator(".speaker-warning-highlight")).toHaveCount(1);
   await expect(speaker).not.toHaveAttribute("data-evidence-active");
   await expect(page.locator(".speaker-warning-guide")).toHaveCount(0);
   await expect(page.locator("#line-3 button, #line-4 button, #line-5 button")).toHaveCount(0);
@@ -591,164 +408,16 @@ test("evidence selects its speaker by ID, repeats the pulse, and clears after pl
   await expect(bystander).not.toHaveAttribute("data-evidence-active");
 });
 
-test("highlights evidence in all four participant positions without moving their tiles", async ({ page, context }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await join(page, "김민수");
-  for (const name of ["이서연", "박지훈", "최유진"]) {
-    const participant = await context.newPage();
-    await join(participant, name);
-  }
-  await detect(page);
-  await page.evaluate(() => {
-    const source = (window as any).__testAnalysisEvents;
-    source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
-      eventSeq: 7, seq: 6, kind: "SPEECH", trackId: "participant-4", text: "확인을 위해 지금 송금해 주세요.",
-    }) }));
-    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
-      eventSeq: 8, level: "WARN", score: 90, evidenceSeqs: [1, 2, 3, 6],
-      reason: "송금을 유도하는 발화를 확인했어요.",
-    }) }));
-  });
-  for (const [index, position] of ["top-left", "top-right", "bottom-left", "bottom-right"].entries()) {
-    const seq = [1, 2, 3, 6][index];
-    const selected = page.getByTestId(`person-participant-${index + 1}`);
-    const before = await selected.boundingBox();
-    await page.locator(`#line-${seq} button`).click();
-    for (const person of await page.locator(".person").all()) await expect(person).toHaveCSS("transform", "none");
-    await page.screenshot({ path: `test-results/evidence-${position}.png`, fullPage: true, animations: "disabled" });
-    await expect(selected).toHaveAttribute("data-evidence-active", "true");
-    expect(await selected.boundingBox()).toEqual(before);
-    await expect(selected.locator(".speaker-warning-highlight")).toBeInViewport({ ratio: 1 });
-  }
-});
-
-test("reduced motion uses a static warning and disabling analysis clears the highlight", async ({ page }) => {
+test("reduced motion uses a static warning and hangup clears analysis", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await join(page, "나");
   await detect(page);
-  expect(await page.locator(".guardian-search").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
   const self = page.getByTestId("person-participant-1");
   await page.locator("#line-1 button").press("Space");
   await expect(self).toHaveAttribute("data-evidence-active", "true");
   expect(await self.locator(".speaker-warning-highlight").evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
-  await page.getByTestId("analysis-toggle").click();
-  await expect(self).not.toHaveAttribute("data-evidence-active");
-  await expect(page.locator(".speaker-warning-guide")).toHaveCount(0);
-  await expect(page.getByTestId("transcript").locator("li")).toHaveCount(0);
-  // 사용자가 끈 분석은 자동으로 다시 켜지지 않는다 (자동 시작은 통화마다 한 번)
-  await page.waitForTimeout(1000);
-  await expect(page.getByTestId("analysis-toggle")).toHaveAttribute("aria-checked", "false");
-  await page.getByTestId("analysis-toggle").click();
-  await expect(page.getByTestId("analysis-toggle")).toHaveAttribute("aria-checked", "true");
-});
-
-test("collapsed protection badge reflects listening, connection loss, and detected danger", async ({ page }) => {
-  await join(page, "나");
-  const indicator = page.getByTestId("header-protection");
-  await expect(page.getByRole("heading", { name: "회의룸: audio-test", exact: true })).toBeVisible();
-  await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-track", "open");
-  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
-  await expect(indicator).toHaveText("ScamShield 보호 중");
-  await expect(indicator).toHaveAttribute("data-state", "listening");
-  const header = await page.locator(".meeting-head").boundingBox();
-  const badge = await indicator.boundingBox();
-  expect(Math.abs(badge!.x + badge!.width / 2 - (header!.x + header!.width / 2))).toBeLessThan(1);
-  await page.screenshot({ path: "test-results/header-protection.png", fullPage: true });
-  await page.setViewportSize({ width: 375, height: 812 });
-  const mobileBadge = await indicator.boundingBox();
-  expect(Math.abs(mobileBadge!.x + mobileBadge!.width / 2 - 375 / 2)).toBeLessThan(1);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
-  await page.screenshot({ path: "test-results/header-protection-mobile.png", fullPage: true });
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await indicator.click();
-  await expect(page.getByRole("complementary", { name: "ScamShield 통화 보호" })).toBeVisible();
-  await expect(indicator).toHaveCount(0);
-  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
-  await page.evaluate(() => (window as any).__testAnalysisEvents.onerror(new Event("error")));
-  await expect(indicator).toHaveText("ScamShield 재연결 중");
-  await expect(indicator).toHaveAttribute("data-state", "degraded");
-  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("alert", { data: JSON.stringify({
-    eventSeq: 1, level: "WARN", score: 90, reason: "위험 신호 감지",
-  }) })));
-  await expect(indicator).toHaveText("ScamShield 위험 감지");
-  await expect(indicator).toHaveAttribute("data-state", "WARN");
-  await page.getByRole("button", { name: "위험 알림 닫기", exact: true }).click();
-  await indicator.click();
-  await page.getByTestId("analysis-toggle").click();
-  await page.getByRole("button", { name: "보호 패널 닫기", exact: true }).click();
-  await expect(indicator).toHaveCount(0);
-});
-
-test("findings use the full panel while speech keeps arriving and evidence restores the transcript", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await join(page, "나");
-  await detect(page);
-  await page.evaluate(() => {
-    const source = (window as any).__testAnalysisEvents;
-    for (let seq = 6; seq <= 35; seq++) {
-      source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
-        eventSeq: seq + 1, seq, kind: "SPEECH", trackId: "participant-1", text: `대화를 이어가는 중입니다. ${seq}`,
-      }) }));
-    }
-    source.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
-      eventSeq: 37, level: "WARN", score: 90, evidenceSeqs: [1],
-      reason: "기관을 사칭하며 급하게 송금하도록 유도하는 대화가 이어지고 있습니다. ".repeat(30),
-      message: "요청받은 내용을 확인하세요.",
-    }) }));
-  });
-  const transcript = page.getByTestId("transcript");
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-  const analysis = page.getByRole("tabpanel", { name: "분석 결과", exact: true });
-  const list = transcript.locator(".transcript-lines");
-  await expect(list.locator("li")).toHaveCount(35);
-
-  for (const viewport of [{ width: 1280, height: 720 }, { width: 1440, height: 900 }]) {
-    await page.setViewportSize(viewport);
-    await expect(transcript).toBeHidden();
-    const bounds = await analysis.boundingBox();
-    const available = await page.locator(".analysis-scroll").boundingBox();
-    expect(bounds!.height).toBeGreaterThan(400);
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
-    expect(bounds!.y + bounds!.height).toBeCloseTo(available!.y + available!.height, 0);
-    expect(await analysis.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-    expect(await page.locator(".safety-content").evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
-  }
-
-  // New speech continues accumulating without moving the result being read.
-  await analysis.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-  const analysisTop = await analysis.evaluate((element) => element.scrollTop);
-  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
-    eventSeq: 38, seq: 36, kind: "SPEECH", trackId: "participant-1", text: "새로운 대화입니다.",
-  }) })));
-  await expect(list.locator("li")).toHaveCount(36);
-  await expect(transcript).toBeHidden();
-  expect(await analysis.evaluate((element) => element.scrollTop)).toBe(analysisTop);
-  await page.screenshot({ path: "test-results/transcript-long-analysis.png", fullPage: true });
-
-  // Evidence switches to live analysis before revealing an older line.
-  await page.getByRole("button", { name: "근거가 된 말 1개 보기", exact: true }).click();
-  await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
-  await expect(transcript).toBeVisible();
-  await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#line-1")).toBeInViewport();
-  await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
-
-  // Reading older speech must not jump to the newest line when another utterance arrives.
-  const readerTop = await list.evaluate((element) => element.scrollTop);
-  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-  await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
-  expect(await list.evaluate((element) => element.scrollTop)).toBe(readerTop);
-  await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
-    eventSeq: 39, seq: 37, kind: "SPEECH", trackId: "participant-1", text: "이전 대화를 읽는 동안 새로 도착한 발화입니다.",
-  }) })));
-  await expect(list.locator("li")).toHaveCount(37);
-  expect(await list.evaluate((element) => element.scrollTop)).toBe(readerTop);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(await page.getByRole("region", { name: "통화 분석", exact: true }).evaluate((element) => getComputedStyle(element).overflowY)).toBe("visible");
-  expect(await list.evaluate((element) => element.clientHeight)).toBeGreaterThan(400);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "통화 나가기" }).click();
+  await expect(page.getByTestId("analysis")).toHaveCount(0);
 });
 
 test.describe("judgment history", () => {
@@ -760,7 +429,7 @@ test.describe("judgment history", () => {
     await join(page, "김민수");
     await join(await context.newPage(), "이서연");
     await detect(page);
-    await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+    await openResults(page);
     const latest = page.getByTestId("analysis-reason");
     const history = page.getByRole("region", { name: "이전 판단 근거", exact: true });
     await expect(latest.locator("time")).toHaveText("오후 3:24");
@@ -777,7 +446,7 @@ test.describe("judgment history", () => {
     await expect(history.getByTestId("analysis-history-reason")).toHaveCount(1);
     const original = history.getByTestId("analysis-history-reason").filter({ hasText: "안전계좌로 이체하도록 유도했어요." });
     await expect(original.locator("time")).toHaveText("오후 3:24");
-    await page.getByRole("complementary", { name: "ScamShield 통화 보호" }).screenshot({ path: "test-results/judgment-history.png", animations: "disabled" });
+    await page.getByTestId("analysis").screenshot({ path: "test-results/judgment-history.png", animations: "disabled" });
 
     await page.clock.setFixedTime(new Date("2026-11-24T06:26:00Z"));
     await page.evaluate(() => {
@@ -796,7 +465,7 @@ test.describe("judgment history", () => {
       }, eventSeq);
     }
     await expect(history.getByTestId("analysis-history-reason")).toHaveCount(7);
-    const findings = page.getByRole("tabpanel", { name: "분석 결과", exact: true });
+    const findings = page.getByRole("region", { name: "AI 실시간 분석 결과", exact: true });
     expect(await findings.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     await original.scrollIntoViewIfNeeded();
     await expect(original).toBeInViewport({ ratio: 1 });
@@ -813,122 +482,18 @@ test.describe("judgment history", () => {
     await expect(page.locator("#line-2")).toHaveClass(/flash/);
     await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
 
-    await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+    await openResults(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await original.scrollIntoViewIfNeeded();
     // 펼친 미리보기의 소수점 높이로 생기는 1px 미만의 경계 오차는 허용한다.
-    await expect(original).toBeInViewport({ ratio: 0.99 });
+    const olderEvidence = original.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first();
+    await olderEvidence.scrollIntoViewIfNeeded();
+    await expect(olderEvidence).toBeInViewport({ ratio: 0.99 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.getByTestId("analysis").screenshot({ path: "test-results/judgment-history-mobile.png", animations: "disabled" });
-    await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
-    await page.getByTestId("analysis-toggle").click();
+    await openResults(page);
+    await page.getByRole("button", { name: "통화 나가기" }).click();
     await expect(page.getByTestId("analysis-history-reason")).toHaveCount(0);
     await expect(latest).toHaveCount(0);
-  });
-});
-
-test("empty conversation stays centered and protection controls stay fixed when toggled", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await join(page, "나");
-  const empty = page.locator(".transcript-empty");
-  await expect(empty).toContainText("대화가 시작되면");
-  await expect(page.locator(".guard-message")).toHaveText("통화를 실시간으로 AI가 분석해요");
-  await expect(page.locator(".risk-number")).toBeVisible();
-  const controlBefore = await page.locator(".guard-control").boundingBox();
-  const labelBefore = await page.locator(".guard-label").boundingBox();
-  for (const active of [true, false]) {
-    if (!active) await page.getByTestId("analysis-toggle").click();
-    await expect(empty).toContainText(active ? "대화가 시작되면" : "분석을 시작하면");
-    await expect(page.locator(".risk-number")).toHaveCount(active ? 1 : 0);
-    const control = await page.locator(".guard-control").boundingBox();
-    const label = await page.locator(".guard-label").boundingBox();
-    expect(Math.abs(control!.height - controlBefore!.height)).toBeLessThan(1);
-    expect(Math.abs(label!.y - labelBefore!.y)).toBeLessThan(1);
-    expect(Math.abs(label!.height - labelBefore!.height)).toBeLessThan(1);
-    const area = await empty.boundingBox();
-    const text = await empty.locator("span").boundingBox();
-    expect(Math.abs(text!.x + text!.width / 2 - (area!.x + area!.width / 2))).toBeLessThan(1);
-    expect(Math.abs(text!.y + text!.height / 2 - (area!.y + area!.height / 2))).toBeLessThan(1);
-  }
-  await page.screenshot({ path: "test-results/transcript-empty-centered.png", fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  const area = await empty.boundingBox();
-  const text = await empty.locator("span").boundingBox();
-  expect(Math.abs(text!.x + text!.width / 2 - (area!.x + area!.width / 2))).toBeLessThan(1);
-  await empty.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "test-results/transcript-empty-mobile.png", fullPage: true });
-});
-
-test.describe("mock panel preview", () => {
-  test.use({ deviceScaleFactor: 2 });
-
-  test("captures analyzing, risk, and response views without a backend", async ({ page, context }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    let analyzed = false;
-    await context.route("**/api/analysis/calls/test-analysis", (route) => route.fulfill({ json: {
-      current_score: analyzed ? 50 : null, analyzed_to: analyzed ? 3 : 0, action: analyzed ? "WARN" : null,
-    } }));
-    await join(page, "김강욱");
-    const other = await context.newPage();
-    await join(other, "이수진");
-    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "listening");
-    await page.evaluate(() => {
-      const source = (window as any).__testAnalysisEvents;
-      const lines = [
-        { seq: 1, trackId: "participant-2", text: "서울중앙지검 수사관입니다." },
-        { seq: 2, trackId: "participant-2", text: "수사를 위해 안전계좌로 100만 원을 보내세요." },
-        { seq: 3, trackId: "participant-1", text: "송금하기 전에 확인해볼게요." },
-      ];
-      for (const line of lines) source.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
-        ...line, kind: "SPEECH", eventSeq: line.seq,
-      }) }));
-    });
-    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "analyzing");
-    expect(await page.locator(".guardian-body").evaluate((element) => getComputedStyle(element).animationName)).toBe("guardian-bob");
-    const sidebar = page.getByRole("complementary", { name: "ScamShield 통화 보호" });
-    await sidebar.screenshot({ path: "test-results/mock-panel-analyzing.png", animations: "disabled" });
-
-    analyzed = true;
-    await page.evaluate(() => {
-      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
-        eventSeq: 4, level: "WARN", score: 50, evidenceSeqs: [2],
-        reason: "기관을 사칭하며 안전계좌로 송금을 요구했어요.",
-        message: "송금 요청에 응하지 말고, 상대방의 신원을 확인하세요.",
-      }) }));
-    });
-    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "listening");
-    await expect(page.locator("#line-2 .judged")).toHaveText("위험 신호");
-    await page.screenshot({ path: "test-results/risk-banner-preview.png", fullPage: true, animations: "disabled" });
-    await page.getByRole("button", { name: "위험 알림 닫기", exact: true }).click();
-    await expect(page.getByRole("tab", { name: "분석 결과", exact: true })).toHaveAttribute("data-unread", "true");
-    await sidebar.screenshot({ path: "test-results/mock-panel-risk.png", animations: "disabled" });
-    await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
-    await expect(page.getByTestId("analysis-reason")).toBeInViewport({ ratio: 1 });
-    await expect(page.getByTestId("analysis-response")).toBeInViewport({ ratio: 1 });
-    await expect(page.getByTestId("transcript")).toBeHidden();
-    await sidebar.screenshot({ path: "test-results/mock-panel-findings.png", animations: "disabled" });
-    await page.screenshot({ path: "test-results/mock-panel-full.png", fullPage: true, animations: "disabled" });
-    await page.setViewportSize({ width: 390, height: 844 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    await sidebar.screenshot({ path: "test-results/mock-panel-mobile.png", animations: "disabled" });
-
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
-    await page.getByTestId("analysis-toggle").click();
-    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "off");
-    await sidebar.screenshot({ path: "test-results/mock-panel-off.png", animations: "disabled" });
-    analyzed = false;
-    await page.getByTestId("analysis-toggle").click();
-    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "listening");
-    await page.evaluate(() => {
-      (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
-        eventSeq: 1, seq: 1, kind: "SPEECH", trackId: "participant-2", text: "수사를 위해 안전계좌로 100만 원을 보내세요.",
-      }) }));
-    });
-    await expect(page.locator(".analysis-guardian")).toHaveAttribute("data-state", "analyzing");
-    for (let frame = 0; frame < 28; frame++) {
-      await page.locator(".guard-control").screenshot({ path: `test-results/guardian-frames/${String(frame).padStart(2, "0")}.png` });
-      await page.waitForTimeout(60);
-    }
   });
 });

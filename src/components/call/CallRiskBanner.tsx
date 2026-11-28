@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { CloseIcon } from "../common/icons";
 import "./CallRiskBanner.css";
 
-export function CallRiskBanner({ onClose }: { onClose: () => void }) {
+export function CallRiskBanner({ onClose, onViewAnalysis }: { onClose: () => void; onViewAnalysis: () => void }) {
   const bannerRef = useRef<HTMLElement>(null);
   const previousFocus = useRef(document.activeElement);
   useEffect(() => {
@@ -26,6 +26,7 @@ export function CallRiskBanner({ onClose }: { onClose: () => void }) {
       <div className="call-risk-copy">
         <h2>보이스피싱 위험 발생</h2>
         <p>보이스피싱 의심 정황이 감지됐어요.<br /><span className="call-risk-action">통화를 종료하고 경찰(112) 또는 금융감독원(1332)에 도움을 요청하세요.</span></p>
+        <button type="button" className="call-risk-view" onClick={onViewAnalysis}>실시간 분석 결과 보기</button>
       </div>
     </div>
     <div className="call-risk-controls">

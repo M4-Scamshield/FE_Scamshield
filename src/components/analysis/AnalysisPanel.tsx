@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import type { AnalysisAlert, TacticFinding, TranscriptLine, useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { ShieldIcon } from "../common/icons";
-import { AnalysisGuardian } from "../common/AnalysisGuardian";
 import { EvidenceList } from "./EvidenceList";
 import { RiskTimeline } from "./RiskTimeline";
+import "./LiveAnalysis.css";
 
 const receiptTimeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 
-/** 통화 오른쪽 보호 패널: 켜기 토글 · 위험 경고 · AI 안내와 답 입력 */
+/** 통화 세션을 유지한 채 표시하는 실시간 분석 화면. */
 /** AI 는 화자를 참가자 id(p1, p2 …)로 본다 → 근거 속 id 를 참가자 이름으로 바꿔 보여 준다 */
 function withName(reason: string, names: Map<string, string>) {
   return reason.replace(/\[?\b(p\d+)\b\]?/g, (whole, id: string) => names.get(id) ?? whole);
@@ -18,28 +18,26 @@ export function AnalysisPanel({
   names,
   onSelectSpeaker,
   onRevealTranscript,
-  statusIndicator,
   view,
-  onViewChange: setView,
+  transcript,
 }: {
   analysis: ReturnType<typeof useAnalysis>;
   names: Map<string, string>;
   onSelectSpeaker: (trackId: string) => void;
   onRevealTranscript: () => void;
-  statusIndicator: ReactNode;
   view: "risk" | "findings";
-  onViewChange: (view: "risk" | "findings") => void;
+  transcript: ReactNode;
 }) {
-  const { status, error, alert, warnings, action, judged, lines, tracks, streamDown, riskHistory, enable, disable, reply } = analysis;
+  const { status, error, alert, warnings, action, judged, lines, riskHistory, reply } = analysis;
   const on = status === "on" || status === "starting";
-  const trackStates = Object.values(tracks);
-  const reconnecting = streamDown || trackStates.some((state) => state === "retrying" || state === "stopped" || state === "rejected");
-  const protectionState = reconnecting ? "reconnecting" : status === "on" && trackStates.includes("open") ? "listening" : "connecting";
   // JEV 가 의심했지만 Gemini 가 다시 보고 피싱이 아니라고 함: 경고 없이(OBSERVE) 근거만 있다
   const falsePositive = judged.action === "OBSERVE" && !!judged.reason;
   const score = alert?.score ?? judged.score;
   const measured = on && score !== null;
   const riskBand = alert?.level === "WARN" ? "danger" : alert || (measured && score >= 40) ? "caution" : measured ? "safe" : "idle";
+  const disconnected = analysis.streamDown || Object.values(analysis.tracks).some((track) => track === "retrying" || track === "stopped" || track === "rejected");
+  const resultState = alert && on ? riskBand : !on || !measured || disconnected ? "pending" : riskBand;
+  const resultText = resultState === "danger" ? "위험이 감지됐어요" : resultState === "caution" ? "주의가 필요해요" : !on ? "분석이 꺼져 있어요" : disconnected ? "분석 연결 확인 중" : !measured ? "통화를 분석하고 있어요" : "안전해요";
   const hasFindings = !!alert || (status === "on" && falsePositive) || !!action;
   const alertReason = alert?.reason || (judged.action === "WARN" ? judged.reason : null);
   const previousWarnings = warnings.filter((warning) => warning.eventSeq !== alert?.eventSeq).reverse();
@@ -56,83 +54,38 @@ export function AnalysisPanel({
     const line = lines.find((line) => line.seq === seqs[0]);
     if (line) onSelectSpeaker(line.trackId);
   };
-  const [seenFindings, setSeenFindings] = useState<string | null>(null);
-  const findingsKey = hasFindings ? JSON.stringify([alert?.eventSeq, action?.eventSeq, judged.reason]) : null;
-  const unread = view === "risk" && findingsKey !== null && findingsKey !== seenFindings;
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  useEffect(() => {
-    if (view === "findings") setSeenFindings(findingsKey);
-  }, [view, findingsKey]);
-  const analyzing = protectionState === "listening" && on && lines.some((line) => line.seq > judged.analyzedTo);
-  const guardianState = !on ? "off" : protectionState !== "listening" ? "connecting" : analyzing ? "analyzing" : "listening";
-  const guardianText = !on ? "보호 일시 중지" : protectionState === "reconnecting" ? "연결 확인 중" : protectionState !== "listening" ? "분석 준비 중" : analyzing ? "새 발화 분석 중" : "대화를 듣고 있어요";
   const riskSection = (
-    <div className="risk-section">
-      <div className="risk-summary" data-risk={riskBand} data-measured={measured}>
-        <div className="risk-heading">
-          <strong>{!on ? "분석 대기 중" : alert?.level === "WARN" ? "사기 위험 감지" : alert ? "의심 정황 감지" : !measured ? lines.length > 0 ? "위험 신호 분석 중" : "대화 분석 대기 중" : falsePositive ? "재확인 완료 · 피싱 아님" : score >= 40 ? "주의가 필요해요" : "현재 위험도 낮음"}</strong>
-          {measured && <span className="risk-number" role="meter" aria-label="통화 위험도" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>{score}<small>/ 100</small></span>}
-        </div>
-        <RiskTimeline samples={riskHistory} />
+    <div id="live-analysis-risk" className="risk-section" hidden={view !== "risk"} role="tabpanel" aria-labelledby="live-tab-risk" tabIndex={0}>
+      <div className="risk-summary risk-overview" data-risk={riskBand} data-measured={measured}>
+        <section className="risk-current" aria-label="현재 통화 위험도">
+          <div className="analysis-verdict" data-state={resultState} data-testid="analysis-verdict" role="status">
+            <svg className="verdict-wave" viewBox="0 0 600 120" preserveAspectRatio="none" fill="none" aria-hidden="true">
+              {Array.from({ length: 9 }, (_, i) => <path key={i} d={`M0 60 C70 ${5 + i * 6}, 100 ${5 + i * 6}, 170 60 S270 ${115 - i * 6}, 330 60 S440 ${5 + i * 6}, 500 60 S560 ${90 - i * 3}, 600 60`} />)}
+            </svg>
+            <div className="verdict-ring">
+              <svg viewBox="0 0 200 200" fill="none" aria-hidden="true"><circle className="verdict-ring-track" cx="100" cy="100" r="90" /><circle className="verdict-ring-fill" cx="100" cy="100" r="90" pathLength="100" /></svg>
+              <div className="verdict-copy"><ShieldIcon /><strong>{resultText}</strong></div>
+            </div>
+            <div className="verdict-stats"><div><span>통화 위험도</span><strong role={measured ? "meter" : undefined} aria-label="통화 위험도" aria-valuemin={measured ? 0 : undefined} aria-valuemax={measured ? 100 : undefined} aria-valuenow={measured ? score : undefined}>{measured ? `${score}점` : on ? "분석 중" : "대기 중"}</strong></div><div><span>감지된 위험 수법</span><strong>{findings.length ? `${findings.length}개` : alert ? "확인 중" : measured ? "0개" : on ? "분석 중" : "대기 중"}</strong></div></div>
+          </div>
+        </section>
+        <section className="risk-trend" aria-label="실시간 위험도 추이">
+          <h3>실시간 위험도 추이</h3>
+          <RiskTimeline samples={riskHistory} expanded />
+        </section>
       </div>
     </div>
   );
 
   return (
-    <section className="guard" data-level={alert?.level ?? "none"} data-testid="analysis" data-view={view}>
-      <div className="analysis-navigation">
-        <div className="analysis-tabs" role="tablist" aria-label="통화 분석 보기">
-          {(["risk", "findings"] as const).map((tab, index) => <button
-            key={tab} ref={(node) => { tabRefs.current[index] = node; }}
-            type="button" role="tab" id={`analysis-tab-${tab}`} aria-controls={`analysis-${tab}`}
-            aria-selected={view === tab} tabIndex={view === tab ? 0 : -1}
-            data-unread={tab === "findings" && unread || undefined}
-            aria-describedby={tab === "findings" && unread ? "guardian-result-message" : undefined}
-            onClick={() => { setView(tab); if (tab === "findings") setSeenFindings(findingsKey); }}
-            onKeyDown={(event) => {
-              const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowRight" ? 1 - index : null;
-              if (next === null) return;
-              event.preventDefault();
-              setView(next === 0 ? "risk" : "findings");
-              tabRefs.current[next]?.focus();
-            }}
-          >{tab === "risk" ? "실시간 분석" : "분석 결과"}{tab === "findings" && unread && <span className="analysis-tab-dot" aria-hidden="true" />}</button>)}
-        </div>
-        {statusIndicator}
-      </div>
+    <section className="guard live-analysis" data-level={alert?.level ?? "none"} data-testid="analysis" data-view={view} aria-labelledby="call-brand-title">
+      {riskSection}
+      {error && <p className="error" role="alert">{error}</p>}
 
-      <div className="guard-control" role="group" aria-label="실시간 보호 설정">
-        <div className="guard-head">
-          <div className="guard-label"><AnalysisGuardian state={guardianState} /><span className="guard-title">실시간 보호</span><span className="analysis-state-text" role="status">{guardianText}</span></div>
-          <button
-            className="switch"
-            role="switch"
-            aria-label="실시간 보호"
-            aria-checked={on}
-            onClick={on ? disable : enable}
-            disabled={status === "starting"}
-            data-testid="analysis-toggle"
-          >
-            {on ? "ON" : "OFF"}
-          </button>
-        </div>
-        <div className="guard-message-area">
-          {unread ? <div className="guardian-speech" id="guardian-result-message" data-warning={!!alert || undefined} role="status">
-            <strong>{alert ? "위험 신호를 찾았어요!" : "새 분석 결과가 도착했어요."}</strong>
-            <span className="analysis-state-text">분석 결과 탭에서 확인하세요.</span>
-          </div> : <p className="guard-message" data-state={on ? protectionState : "off"} role="status">
-            {!on ? "필요할 때 다시 켤 수 있어요" : protectionState === "listening" ? "통화를 실시간으로 AI가 분석해요" : protectionState === "reconnecting" ? "분석 연결을 다시 확인하고 있어요" : "분석을 준비하고 있어요"}
-          </p>}
-        </div>
-      </div>
-
-      <div id="analysis-risk" className="guard-page guard-risk" hidden={view !== "risk"} role="tabpanel" aria-labelledby="analysis-tab-risk" tabIndex={0}>
-        {riskSection}
-        {error && <p className="error" role="alert">{error}</p>}
-      </div>
-
-      <div id="analysis-findings" className="guard-page guard-findings" hidden={view !== "findings"} role="tabpanel" aria-labelledby="analysis-tab-findings" tabIndex={0}>
-        {!hasFindings && <div className="findings-empty"><ShieldIcon /><strong>{on ? "분석 결과를 기다리고 있어요" : "보호가 꺼져 있어요"}</strong><p>{on ? "통화 분석 결과와 대응 안내가 이곳에 표시됩니다." : "보호를 켜면 통화 분석 결과를 확인할 수 있어요."}</p></div>}
+      <div id="live-analysis-details" className="live-analysis-details" hidden={view !== "findings"} role="tabpanel" aria-labelledby="live-tab-findings" tabIndex={0}>
+      <section id="analysis-findings" className="guard-page guard-findings" aria-label="AI 실시간 분석 결과" tabIndex={0}>
+        <div className="live-detail-heading"><h3>AI 분석 결과</h3></div>
+        {!hasFindings && <p className="analysis-empty" role="status">{!on ? "실시간 보호를 켜면 분석 결과가 표시됩니다." : disconnected ? "분석 연결을 확인하고 있어요." : resultState === "safe" ? "현재까지 감지된 위험이 없습니다." : "분석 결과를 기다리고 있어요."}</p>}
 
         {status === "on" && !alert && falsePositive && (
           <div className="why" data-kind="recheck" data-testid="analysis-recheck">
@@ -191,7 +144,8 @@ export function AnalysisPanel({
           </ol>
         </section>}
 
-        {error && <p className="error">{error}</p>}
+      </section>
+      {transcript}
       </div>
     </section>
   );

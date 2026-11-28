@@ -55,11 +55,11 @@ test("chat reaches every current peer, tracks unread messages, and clears on a n
   await expect(page.locator(".chat-message")).toHaveCount(0);
 });
 
-test("floating chat preserves the gallery and safety panel, restores focus, and preserves drafts", async ({ page }) => {
+test("floating chat preserves the call layout, restores focus, and preserves drafts", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await join(page, "나");
-  const sidebar = page.locator("#call-safety-panel");
+  const sidebar = page.locator(".meeting-stage-area");
   const sidebarBefore = await sidebar.boundingBox();
   const transcriptBefore = await page.getByTestId("transcript").boundingBox();
   const stageBefore = await page.locator(".meeting-stage").boundingBox();
@@ -68,7 +68,7 @@ test("floating chat preserves the gallery and safety panel, restores focus, and 
   expect(await sidebar.boundingBox()).toEqual(sidebarBefore);
   expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
   const chat = await page.locator(".call-chat").boundingBox();
-  expect(chat!.x + chat!.width).toBeLessThanOrEqual(sidebarBefore!.x);
+  expect(chat!.x + chat!.width).toBeLessThanOrEqual(sidebarBefore!.x + sidebarBefore!.width);
   expect(await page.locator(".meeting-stage").boundingBox()).toEqual(stageBefore);
   expect(await page.getByTestId("person-participant-1").boundingBox()).toEqual(tileBefore);
   expect(chat!.width).toBe(340);
@@ -95,11 +95,11 @@ test("floating chat preserves the gallery and safety panel, restores focus, and 
     for (const control of await page.locator(".meeting-toolbar .round, .leave-button").all()) {
       const bounds = await control.boundingBox();
       expect(bounds!.x).toBeGreaterThanOrEqual(toolbarBounds!.x);
-      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(panelBounds!.x);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width);
     }
   }
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByRole("button", { name: "보호 패널 닫기" }).click();
+  await page.getByRole("tab", { name: "실시간 위험도", exact: true }).click();
   expect((await page.locator(".call-chat").boundingBox())!.width).toBe(340);
   for (const width of [1024, 801, 800, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
@@ -262,13 +262,14 @@ test("chat moves and resizes within the call area, supports keyboard controls, a
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await join(page, "나");
+  await page.getByRole("tab", { name: "실시간 위험도", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "분석 서버 연결 실패 (HTTP 503)" })).toBeVisible();
   await openChat(page);
   const panel = page.locator(".call-chat");
   const handle = page.getByRole("button", { name: "채팅창 크기 조절 (왼쪽 위)", exact: true });
   const move = page.getByRole("button", { name: "채팅창 이동", exact: true });
   const area = page.locator(".meeting-stage-area");
-  const sidebarBefore = await page.locator("#call-safety-panel").boundingBox();
+  const sidebarBefore = await page.locator(".meeting-stage-area").boundingBox();
   const toolbarBefore = await page.locator(".meeting-toolbar").boundingBox();
   const before = await panel.boundingBox();
   const grip = await handle.boundingBox();
@@ -280,7 +281,7 @@ test("chat moves and resizes within the call area, supports keyboard controls, a
   await page.mouse.up();
   await expect.poll(async () => (await panel.boundingBox())!.height).toBeCloseTo(before!.height + 100, 0);
   expect((await panel.boundingBox())!.width).toBe(before!.width + 80);
-  expect(await page.locator("#call-safety-panel").boundingBox()).toEqual(sidebarBefore);
+  expect(await page.locator(".meeting-stage-area").boundingBox()).toEqual(sidebarBefore);
   expect(await page.locator(".meeting-toolbar").boundingBox()).toEqual(toolbarBefore);
   await handle.press("ArrowRight");
   await handle.press("ArrowDown");
@@ -343,7 +344,7 @@ test("chat moves and resizes within the call area, supports keyboard controls, a
   const atEdge = await panel.boundingBox();
   expect(atEdge!.x + atEdge!.width).toBe(areaBounds!.x + areaBounds!.width - 12);
   expect(atEdge!.y + atEdge!.height).toBe(areaBounds!.y + areaBounds!.height - 12);
-  expect(await page.locator("#call-safety-panel").boundingBox()).toEqual(sidebarBefore);
+  expect(await page.locator(".meeting-stage-area").boundingBox()).toEqual(sidebarBefore);
   expect(await page.locator(".meeting-toolbar").boundingBox()).toEqual(toolbarBefore);
   await page.screenshot({ path: "test-results/chat-resized.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });

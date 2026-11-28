@@ -1,12 +1,13 @@
-import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { AnimatePresence, MotionConfig, motion, useIsPresent } from "motion/react";
 import { flushSync } from "react-dom";
-import { CameraIcon, CameraOffIcon, ChatIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PanelIcon, PeopleIcon, ShieldIcon } from "../common/icons";
+import { CameraIcon, CameraOffIcon, ChatIcon, HangupIcon, LinkIcon, MicIcon, MicOffIcon, PeopleIcon } from "../common/icons";
 import type { CallStatus, ParticipantInfo } from "../../services/webrtc/MeshClient";
 import type { useCall } from "../../hooks/call/useCall";
 import { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
+import { BrandLogo } from "../common/BrandLogo";
 import { useSpeaking } from "../../hooks/call/useSpeaking";
 import { useChatConversations } from "../../hooks/call/useChatConversations";
 import { SoundSettings } from "./SoundSettings";
@@ -38,15 +39,6 @@ const PEER_STATE_TEXT: Record<RTCPeerConnectionState, string> = {
 
 type WatchState = "off" | "starting" | "listening" | "degraded" | "SUSPECT" | "WARN";
 
-const WATCH_TEXT: Record<WatchState, string> = {
-  off: "분석 중지",
-  starting: "연결 중",
-  listening: "분석 중",
-  degraded: "연결 끊김",
-  SUSPECT: "주의 감지",
-  WARN: "위험 감지",
-};
-
 /** 실제 연결 상태로만 정한다. 음성이 분석 서버에 닿고 있을 때만 listening 이다 */
 function watchState(analysis: ReturnType<typeof useAnalysis>): { state: WatchState; degraded: boolean } {
   const { status, tracks, streamDown, alert } = analysis;
@@ -62,17 +54,19 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const { status, joined, peers, muted, camera, error, hangup, toggleMute, toggleCamera } = call;
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const [analysisView, setAnalysisView] = useState<"risk" | "findings">("risk");
+  const viewTabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [seenAnalysis, setSeenAnalysis] = useState<string | null>(null);
   const [warningOpen, setWarningOpen] = useState(false);
   const warned = useRef(false);
   const [transcriptSpeaker, setTranscriptSpeaker] = useState<string | null>(null);
   const revealTranscript = () => {
     flushSync(() => {
-      setAnalysisView("risk");
+      setAnalysisView("findings");
       setTranscriptSpeaker(null);
     });
-    document.getElementById("analysis-tab-risk")?.focus({ preventScroll: true });
+    document.getElementById("live-transcript")?.focus({ preventScroll: true });
   };
   const [chatOpen, setChatOpen] = useState(false);
   const chatButtonRef = useRef<HTMLButtonElement>(null);
@@ -100,6 +94,12 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     "--gallery-rows": Math.max(1, Math.ceil(participantCount / galleryColumns)),
   } as CSSProperties;
   const analysis = useAnalysis(call.micStream, joined);
+  const hasAnalysisResult = !!analysis.alert || !!analysis.action || (analysis.status === "on" && analysis.judged.action === "OBSERVE" && !!analysis.judged.reason);
+  const analysisResultKey = hasAnalysisResult ? JSON.stringify([analysis.alert?.eventSeq, analysis.action?.eventSeq, analysis.judged.reason]) : null;
+  const analysisUnread = analysisResultKey !== null && analysisResultKey !== seenAnalysis && !(analysisOpen && analysisView === "findings");
+  useEffect(() => {
+    if (!analysisResultKey || (analysisOpen && analysisView === "findings")) setSeenAnalysis(analysisResultKey);
+  }, [analysisResultKey, analysisOpen, analysisView]);
   useEffect(() => {
     if (analysis.status === "off" || analysis.status === "error") {
       warned.current = false;
@@ -153,12 +153,26 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     if (!colors.current.has(p.info.id)) colors.current.set(p.info.id, colors.current.size % 3);
   }
   const watch = watchState(analysis);
-  const collapsedProtectionText = watch.state === "listening" ? "ScamShield 보호 중"
-    : watch.state === "WARN" ? "ScamShield 위험 감지"
-    : watch.state === "SUSPECT" ? "ScamShield 주의 감지"
-    : watch.state === "degraded" ? "ScamShield 재연결 중"
-    : "ScamShield 연결 중";
-  const showCollapsedProtection = !panelOpen && (analysis.status === "on" || analysis.status === "starting");
+  const currentView = analysisOpen ? analysisView : "call";
+  const changeView = (view: "call" | "risk" | "findings") => {
+    setAnalysisOpen(view !== "call");
+    if (view !== "call") {
+      setAnalysisView(view);
+      setWarningOpen(false);
+    }
+    setSoundMenuTarget(null);
+  };
+
+  const openAnalysis = () => {
+    flushSync(() => {
+      setAnalysisOpen(true);
+      setAnalysisView("risk");
+      setWarningOpen(false);
+      setSoundMenuTarget(null);
+    });
+    document.getElementById("live-tab-risk")?.focus({ preventScroll: true });
+    document.getElementById("call-live-analysis")?.scrollIntoView({ block: "nearest" });
+  };
 
   const copyInvite = async () => {
     const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(call.room)}`;
@@ -172,47 +186,52 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   };
 
   return (
-    <div className="call-layout" data-watch={watch.state} data-panel-open={panelOpen}>
+    <div className="call-layout" data-watch={watch.state} data-analysis-open={analysisOpen}>
       <section className="meeting" aria-label="통화 공간">
-        <div className="meeting-head" data-protection-visible={showCollapsedProtection || undefined}>
-          <div className="meeting-room">
-            <span className="room-label" aria-hidden>회의룸</span>
-            <h1 className="room" title={call.room} aria-label={`회의룸: ${call.room}`}>{call.room}</h1>
+        <div className="meeting-head meeting-head-unified">
+          <div className="meeting-navigation">
+            <h2 id="call-brand-title" className="call-brand"><BrandLogo />ScamShield</h2>
+            <div className="meeting-view-tabs" role="tablist" aria-label="통화 화면 보기">
+              {(["call", "risk", "findings"] as const).map((view, index) => {
+                const tabProps = {
+                  ref: (node: HTMLButtonElement | null) => { viewTabs.current[index] = node; },
+                  type: "button" as const, role: "tab", id: `live-tab-${view}`,
+                  "aria-selected": currentView === view,
+                  "aria-controls": view === "call" ? "call-gallery" : view === "risk" ? "live-analysis-risk" : "live-analysis-details",
+                  tabIndex: currentView === view ? 0 : -1,
+                  onClick: () => changeView(view),
+                  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
+                    const next = event.key === "Home" ? 0 : event.key === "End" ? 2 : event.key === "ArrowLeft" ? (index + 2) % 3 : event.key === "ArrowRight" ? (index + 1) % 3 : null;
+                    if (next === null) return;
+                    event.preventDefault();
+                    changeView((["call", "risk", "findings"] as const)[next]);
+                    viewTabs.current[next]?.focus();
+                  },
+                };
+                return view === "call" ? <h1 key={view} className="room" title={call.room} aria-label={`회의룸: ${call.room}`}>
+                  <button {...tabProps}><span>{call.room} 회의실</span></button>
+                </h1> : <button key={view} {...tabProps} data-unread={view === "findings" && analysisUnread || undefined}>
+                  {view === "risk" ? "실시간 위험도" : "AI 분석"}{view === "findings" && analysisUnread && <span className="live-tab-unread" aria-hidden="true" />}
+                </button>;
+              })}
+            </div>
           </div>
-          {showCollapsedProtection && <button
-            type="button" className="protection-indicator" data-state={watch.state}
-            data-testid="header-protection" aria-controls="call-safety-panel"
-            aria-label={`${collapsedProtectionText} · 보호 패널 열기`}
-            onClick={() => setPanelOpen(true)}
-          >
-            <ShieldIcon /><span role="status">{collapsedProtectionText}</span>
-          </button>}
           <div className="meeting-meta">
             <span className="status" data-status={status} data-testid="status">
               <span className="connection-dot" aria-hidden />
               <span className="status-message">{STATUS_TEXT[status]}{status === "waiting" && <span className="waiting-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>}</span>
             </span>
             {status === "connected" && <span className="timer">{formatTime(seconds)}</span>}
-            <button
-              className="panel-toggle"
-              onClick={() => setPanelOpen((open) => !open)}
-              aria-expanded={panelOpen}
-              aria-controls="call-safety-panel"
-              aria-label={panelOpen ? "보호 패널 닫기" : "보호 패널 열기"}
-              title={panelOpen ? "보호 패널 닫기" : "보호 패널 열기"}
-            >
-              <PanelIcon />
-            </button>
           </div>
         </div>
 
         {warningOpen && analysis.status === "on" && analysis.alert?.level === "WARN" && <div className="meeting-warning-layer">
-          <CallRiskBanner onClose={() => setWarningOpen(false)} />
+          <CallRiskBanner onClose={() => setWarningOpen(false)} onViewAnalysis={openAnalysis} />
         </div>}
 
         <div className="meeting-stage-area">
           <motion.div className="meeting-stage" layoutScroll>
-            <div className="gallery-viewport">
+            <div id="call-gallery" className="gallery-viewport" hidden={analysisOpen} role="tabpanel" aria-labelledby="live-tab-call">
               {participantCount > 0 ? (
                 <MotionConfig reducedMotion="user" transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
                   <motion.ul layout className="people" data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
@@ -255,6 +274,19 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             {status === "failed" && <p className="meeting-notice">통화 연결이 끊겼어요. 네트워크 연결을 확인하고 다시 입장해 주세요.</p>}
             {error && <p className="error meeting-notice" role="alert">{error}</p>}
             {joined && participantCount === 1 && <p className="meeting-caption">아직 나만 있어요. 초대 링크를 공유해 통화를 시작하세요.</p>}
+            <div id="call-live-analysis" className="live-analysis-container" hidden={!analysisOpen}>
+              {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
+              <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={(trackId) => highlightSpeaker(trackId, false)} onRevealTranscript={revealTranscript}
+                view={analysisView}
+                transcript={<TranscriptPanel
+                  hidden={analysisView !== "findings"}
+                  selfId={joined?.self.id} selectedSpeaker={transcriptSpeaker} onSelectFilter={setTranscriptSpeaker}
+                  active={analysis.status === "on"} lines={analysis.lines} names={names.current} colors={colors.current}
+                  evidence={[...warningEvidence, ...analysis.warnings.flatMap((w) => w.evidenceSeqs ?? [])]}
+                  analyzedTo={analysis.judged.analyzedTo} liveTracks={liveTracks} onSelectSpeaker={highlightSpeaker}
+                />}
+              />
+            </div>
           </motion.div>
 
           <ChatPanel open={chatOpen} chat={chat} selfId={joined?.self.id} ready={call.chatReady}
@@ -262,7 +294,17 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         </div>
 
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
-          <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
+          <div className="toolbar-session">
+            <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>
+            <div className="live-protection-control call-protection-control">
+              <span id="call-ai-protection-label" className="live-protection-label">실시간 보호</span>
+              <button type="button" className="live-protection-switch" role="switch" aria-labelledby="call-ai-protection-label"
+                aria-checked={analysis.status === "on" || analysis.status === "starting"} data-testid="analysis-toggle"
+                disabled={analysis.status === "starting"} onClick={analysis.status === "on" ? analysis.disable : analysis.enable}>
+                <span className="protection-switch-knob" />
+              </button>
+            </div>
+          </div>
           <div className="controls">
             <button className="round" data-active={muted} onClick={toggleMute} aria-pressed={muted} aria-label={muted ? "음소거 해제" : "음소거"} title={muted ? "음소거 해제" : "음소거"}>
               {muted ? <MicOffIcon /> : <MicIcon />}
@@ -294,33 +336,6 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         })}
       </section>
 
-      <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
-        {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
-        <div className="safety-content" data-view={analysisView}>
-          <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
-            <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={(trackId) => highlightSpeaker(trackId, false)} onRevealTranscript={revealTranscript}
-              view={analysisView} onViewChange={setAnalysisView}
-              statusIndicator={<div className="watch-status" role="status" data-testid="watch">
-                <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
-              </div>}
-            />
-          </div>
-          <TranscriptPanel
-            hidden={analysisView === "findings"}
-            selfId={joined?.self.id}
-            selectedSpeaker={transcriptSpeaker}
-            onSelectFilter={setTranscriptSpeaker}
-            active={analysis.status === "on"}
-            lines={analysis.lines}
-            names={names.current}
-            colors={colors.current}
-            evidence={analysis.warnings.flatMap((w) => w.evidenceSeqs ?? [])}
-            analyzedTo={analysis.judged.analyzedTo}
-            liveTracks={liveTracks}
-            onSelectSpeaker={highlightSpeaker}
-          />
-        </div>
-      </aside>
       {soundMenuTarget && (soundMenuIsMe || soundMenuPeer) && <ParticipantSoundMenu
         target={soundMenuTarget} onClose={closeSoundMenu}
         label={soundMenuIsMe ? "내 마이크" : soundMenuPeer!.info.name}
