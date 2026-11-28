@@ -408,7 +408,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       <div className="participant-surface">
         {video && <TileVideo stream={video} mirror={me} />}
         {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
-        <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
+        <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span></motion.div>
         <motion.div layout="position" className="participant-bottom">
           <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
           {danger && <span className="participant-risk-label">위험 발화 감지</span>}

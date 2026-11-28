@@ -60,11 +60,11 @@ main[data-view="call"] .log { max-height: 100px; }
   width: min(100%, calc((100cqh - (var(--gallery-rows) - 1) * var(--gallery-gap)) / var(--gallery-rows) * 16 / 9 * var(--gallery-columns) + (var(--gallery-columns) - 1) * var(--gallery-gap)));
 }
 .person { position: relative; container-type: inline-size; flex: none; width: calc((100% - (var(--tile-columns) - 1) * var(--gallery-gap)) / var(--tile-columns)); aspect-ratio: 16 / 9; min-width: 0; min-height: 0; border: 1px solid transparent; border-radius: 12px; }
-.person { --tile: #514574; --spk: #e0d2ff; background: var(--tile); display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.person { --tile: #68538c; --spk: #e0d2ff; background: linear-gradient(135deg, color-mix(in srgb, var(--tile) 18%, #23272b), color-mix(in srgb, var(--tile) 10%, #23272b)); display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .participant-surface { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-.person[data-color="0"] { --tile: #2b6373; --spk: #b4e6f3; }
-.person[data-color="1"] { --tile: #38664f; --spk: #bfe6cf; }
-.person[data-color="2"] { --tile: #795448; --spk: #f6d4bf; }
+.person[data-color="0"] { --tile: #407689; --spk: #b4e6f3; }
+.person[data-color="1"] { --tile: #49745a; --spk: #bfe6cf; }
+.person[data-color="2"] { --tile: #856251; --spk: #f6d4bf; }
 .person[data-tone="me"] { border-color: #a497c5; }
 .person:focus-visible { outline: 2px solid #83cbaa; outline-offset: 3px; }
 /* Draw a steady speaking frame outside the tile, without tinting the video. */
@@ -76,14 +76,13 @@ main[data-view="call"] .log { max-height: 100px; }
 .participant-risk-label { flex: none; padding: 5px 7px; border-radius: 5px; background: #7b2029; color: #fff0ed; font-size: .6875rem; font-weight: var(--weight-semibold); }
 .speaker-warning-highlight { position: absolute; inset: 0; z-index: 2; border: 2px solid #ff7b72; border-radius: inherit; background: #ff53450d; box-shadow: inset 0 0 28px #ff534526; pointer-events: none; animation: speaker-evidence-pulse 1.25s ease-in-out infinite; }
 @keyframes speaker-evidence-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
-.participant-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.participant-placeholder { display: flex; align-items: center; justify-content: center; }
 .participant-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
 .participant-video[data-mirror] { transform: scaleX(-1); }
 .person[data-video] .participant-placeholder { visibility: hidden; }
 .person[data-video]::before { content: ""; position: absolute; inset: auto 0 0; z-index: 1; height: 56px; background: linear-gradient(transparent, rgb(0 0 0 / .45)); pointer-events: none; }
 .person[data-video] .participant-bottom, .person[data-video] .pstate { z-index: 1; }
-.initial { display: grid; place-items: center; width: clamp(56px, 6.5vw, 90px); height: clamp(56px, 6.5vw, 90px); border-radius: 50%; color: #fff; background: rgb(0 0 0 / .23); font-size: clamp(26px, 3vw, 38px); font-weight: var(--weight-medium); }
-.camera-caption { font-size: var(--text-small); color: rgb(255 255 255 / .7); }
+.initial { display: grid; place-items: center; width: clamp(56px, 6.5vw, 90px); height: clamp(56px, 6.5vw, 90px); border-radius: 50%; color: #fff; background: var(--tile); font-size: clamp(26px, 3vw, 38px); font-weight: var(--weight-medium); }
 .participant-bottom { position: absolute; bottom: 12px; left: 12px; right: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pname { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 5px 8px; border-radius: 5px; background: rgb(0 0 0 / .34); color: #fff; font-size: var(--text-body); overflow-wrap: anywhere; font-weight: var(--weight-medium); overflow: hidden; }
 .participant-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
