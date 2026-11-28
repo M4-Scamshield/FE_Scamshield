@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatIcon, CloseIcon } from "../common/icons";
 import { CHAT_MAX_LENGTH, type ChatMessage } from "../../types/chat";
-import { useChatResize } from "../../hooks/call/useChatResize";
+import { useChatWindow } from "../../hooks/call/useChatWindow";
 import type { PeerView } from "../../services/webrtc/MeshClient";
 import "./ChatPanel.css";
 
@@ -26,8 +26,8 @@ export function ChatPanel({ open, messages, selfId, peers, ready, onSend, onClos
   const canSend = recipient ? !!selectedPeer?.chatReady : ready;
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const { height, resizing, separatorProps } = useChatResize(drawerRef);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { rect, interacting, moveProps, resizeProps } = useChatWindow(panelRef, open);
   const atBottom = useRef(true);
 
   const scrollToLatest = () => {
@@ -70,70 +70,73 @@ export function ChatPanel({ open, messages, selfId, peers, ready, onSend, onClos
   };
 
   return (
-    <div ref={drawerRef} id="call-chat-panel" className="chat-drawer" data-open={open} data-resizing={resizing || undefined} aria-hidden={!open} inert={!open}
+    <div ref={panelRef} id="call-chat-panel" className="chat-window" data-open={open} data-interacting={interacting || undefined}
+      style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} aria-hidden={!open} inert={!open}
       onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget && event.propertyName === "grid-template-rows" && open) {
-          if (document.activeElement?.getAttribute("aria-controls") === "call-chat-panel") inputRef.current?.focus({ preventScroll: true });
-          if (atBottom.current) scrollToLatest();
+        if (event.target !== event.currentTarget || event.propertyName !== "opacity" || !open) return;
+        if (document.activeElement?.getAttribute("aria-controls") === "call-chat-panel") inputRef.current?.focus({ preventScroll: true });
+        if (atBottom.current) scrollToLatest();
+      }}>
+      <section className="call-chat" role="dialog" aria-modal="false" aria-labelledby="call-chat-title" onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+          event.stopPropagation();
+          onClose();
         }
       }}>
-      <div className="chat-clip">
-        <section className="call-chat" style={{ height }} aria-labelledby="call-chat-title" onKeyDown={(event) => {
-          if (event.key === "Escape" && !event.nativeEvent.isComposing) {
-            event.stopPropagation();
-            onClose();
-          }
-        }}>
-          <div className="chat-resize-handle" {...separatorProps} title="드래그하거나 위·아래 방향키로 높이 조절"><span aria-hidden="true" /></div>
-          <div className="chat-header">
-            <h2 id="call-chat-title"><ChatIcon />채팅</h2>
-            <select className="chat-recipient" aria-label="채팅 받는 사람" value={recipient?.id ?? ""}
-              onChange={(event) => {
-                const peer = peers.find((item) => item.info.id === event.target.value);
-                setRecipient(peer ? { id: peer.info.id, name: peer.info.name } : null);
-                setError(null);
-              }}>
-              <option value="">모든 참가자</option>
-              {peers.map((peer, index) => <option key={peer.info.id} value={peer.info.id}>{peer.info.name}{peers.filter((item) => item.info.name === peer.info.name).length > 1 ? ` (${peers.slice(0, index + 1).filter((item) => item.info.name === peer.info.name).length})` : ""} · 개인</option>)}
-              {recipient && !selectedPeer && <option value={recipient.id} disabled>{recipient.name} (퇴장) · 개인</option>}
-            </select>
-            <button type="button" className="chat-close" onClick={onClose} aria-label="채팅 닫기" title="채팅 닫기"><CloseIcon /></button>
+        <div className="chat-header">
+          <button type="button" className="chat-move" aria-label="채팅창 이동" title="드래그하거나 방향키로 이동" {...moveProps}>
+            <ChatIcon /><span id="call-chat-title">채팅</span>
+          </button>
+          <button type="button" className="chat-close" onClick={onClose} aria-label="채팅 닫기" title="채팅 닫기"><CloseIcon /></button>
+        </div>
+        <div className="chat-recipient-row">
+          <select className="chat-recipient" aria-label="채팅 받는 사람" value={recipient?.id ?? ""}
+            onChange={(event) => {
+              const peer = peers.find((item) => item.info.id === event.target.value);
+              setRecipient(peer ? { id: peer.info.id, name: peer.info.name } : null);
+              setError(null);
+            }}>
+            <option value="">모든 참가자</option>
+            {peers.map((peer, index) => <option key={peer.info.id} value={peer.info.id}>{peer.info.name}{peers.filter((item) => item.info.name === peer.info.name).length > 1 ? ` (${peers.slice(0, index + 1).filter((item) => item.info.name === peer.info.name).length})` : ""}</option>)}
+            {recipient && !selectedPeer && <option value={recipient.id} disabled>{recipient.name} (퇴장)</option>}
+          </select>
+        </div>
+        <div className="chat-log-wrap">
+          <div className="chat-log" role="log" aria-label="채팅 메시지" aria-live={open ? "polite" : "off"} aria-relevant="additions" ref={logRef} tabIndex={open ? 0 : -1}
+            onScroll={(event) => {
+              const log = event.currentTarget;
+              atBottom.current = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+              if (atBottom.current) setNewMessages(false);
+            }}>
+            {messages.length === 0 && <div className="chat-empty"><ChatIcon /><p>메시지로 대화를 나눠보세요</p></div>}
+            {messages.map((message) => (
+              <article key={`${message.senderId}-${message.id}`} className="chat-message" data-self={message.senderId === selfId} data-private={message.recipientId !== undefined || undefined}>
+                <div className="chat-message-meta"><strong>{message.senderName}{message.senderId === selfId ? " (나)" : ""}</strong>
+                  <span className="chat-audience">{message.recipientId !== undefined ? (message.senderId === selfId ? `${message.recipientName ?? "참가자"}에게` : "나에게") : "전체"}</span>
+                  <time dateTime={new Date(message.receivedAt).toISOString()}>{clock.format(message.receivedAt)}</time></div>
+                <p>{message.text}</p>
+              </article>
+            ))}
           </div>
-          <div className="chat-log-wrap">
-            <div className="chat-log" role="log" aria-label="채팅 메시지" aria-live={open ? "polite" : "off"} aria-relevant="additions" ref={logRef} tabIndex={open ? 0 : -1}
-              onScroll={(event) => {
-                const log = event.currentTarget;
-                atBottom.current = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-                if (atBottom.current) setNewMessages(false);
-              }}>
-              {messages.map((message) => (
-                <article key={`${message.senderId}-${message.id}`} className="chat-message" data-self={message.senderId === selfId} data-private={message.recipientId !== undefined || undefined}>
-                  <div className="chat-message-meta"><strong>{message.senderName}{message.senderId === selfId ? " (나)" : ""}</strong>
-                    <span className="chat-audience">{message.recipientId !== undefined ? `${message.senderId === selfId ? `${message.recipientName ?? "참가자"}에게` : "나에게"} · 개인 메시지` : "전체"}</span>
-                    <time dateTime={new Date(message.receivedAt).toISOString()}>{clock.format(message.receivedAt)}</time></div>
-                  <p>{message.text}</p>
-                </article>
-              ))}
-            </div>
-            {newMessages && <button type="button" className="chat-latest" onClick={scrollToLatest}>새 메시지 보기</button>}
+          {newMessages && <button type="button" className="chat-latest" onClick={scrollToLatest}>새 메시지 보기</button>}
+        </div>
+        <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); send(); }}>
+          <div className="chat-input-row">
+            <textarea ref={inputRef} aria-label="채팅 메시지 입력" placeholder="메시지 입력" rows={2} maxLength={CHAT_MAX_LENGTH} value={draft}
+              onChange={(event) => { setDraft(event.target.value); setError(null); }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                  event.preventDefault();
+                  send();
+                }
+              }} />
+            <button type="submit" className="chat-send" disabled={!canSend || !draft.trim()}>전송</button>
           </div>
-          <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); send(); }}>
-            <div className="chat-input-row">
-              <textarea ref={inputRef} aria-label="채팅 메시지 입력" aria-describedby="chat-input-hint" placeholder="메시지 입력" rows={2} maxLength={CHAT_MAX_LENGTH} value={draft}
-                onChange={(event) => { setDraft(event.target.value); setError(null); }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
-                    event.preventDefault();
-                    send();
-                  }
-                }} />
-              <button type="submit" className="chat-send" disabled={!canSend || !draft.trim()}>전송</button>
-            </div>
-            <div id="chat-input-hint" className="chat-input-hint"><span>{draft.length.toLocaleString()} / {CHAT_MAX_LENGTH.toLocaleString()}</span></div>
-            {error && <p className="chat-error" role="alert">{error}</p>}
-          </form>
-        </section>
-      </div>
+          {error && <p className="chat-error" role="alert">{error}</p>}
+        </form>
+        <button type="button" className="chat-resize-corner" data-corner="top-left" aria-label="채팅창 크기 조절 (왼쪽 위)" title="드래그하거나 방향키로 크기 조절" {...resizeProps("top-left")} />
+        <button type="button" className="chat-resize-corner" data-corner="bottom-right" aria-label="채팅창 크기 조절 (오른쪽 아래)" title="드래그하거나 방향키로 크기 조절" {...resizeProps("bottom-right")} />
+      </section>
     </div>
   );
 }

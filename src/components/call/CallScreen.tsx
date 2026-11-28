@@ -193,53 +193,55 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           </div>
         </div>
 
-        <motion.div className="meeting-stage" layoutScroll>
-          <div className="gallery-viewport">
-            {participantCount > 0 ? (
-              <MotionConfig reducedMotion="user" transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
-                <motion.ul layout className="people" data-speaker-warning={highlightedSpeakerIsLive || undefined} data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
-                  <AnimatePresence initial={false} mode="popLayout">
-                    {joined && (
-                      <ParticipantTile
-                        key={`self-${joined.self.id}`}
-                        info={joined.self}
-                        me
-                        stream={call.micStream}
-                        track={analysis.tracks[joined.self.id]}
-                        muted={muted}
-                        soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
-                        onSoundMenu={setSoundMenuTarget}
-                        evidencePulse={speakerHighlight?.trackId === joined.self.id ? speakerHighlight.pulse : undefined}
-                        video={camera}
-                      />
-                    )}
-                    {peers.map((p) => (
-                      <ParticipantTile
-                        key={`peer-${p.info.id}`}
-                        info={p.info}
-                        stream={p.stream}
-                        state={PEER_STATE_TEXT[p.state]}
-                        tone={p.state === "connected" ? "ok" : p.state === "failed" ? "bad" : "wait"}
-                        color={colors.current.get(p.info.id)}
-                        soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
-                        onSoundMenu={setSoundMenuTarget}
-                        evidencePulse={speakerHighlight?.trackId === p.info.id ? speakerHighlight.pulse : undefined}
-                        video={p.video}
-                        muted={p.muted}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </motion.ul>
-              </MotionConfig>
-            ) : <p className="meeting-wait" role="status">통화 공간에 연결하고 있어요…</p>}
-          </div>
-          {status === "failed" && <p className="meeting-notice">통화 연결이 끊겼어요. 네트워크 연결을 확인하고 다시 입장해 주세요.</p>}
-          {error && <p className="error meeting-notice" role="alert">{error}</p>}
-          {joined && participantCount === 1 && <p className="meeting-caption">아직 나만 있어요. 초대 링크를 공유해 통화를 시작하세요.</p>}
-        </motion.div>
+        <div className="meeting-stage-area">
+          <motion.div className="meeting-stage" layoutScroll>
+            <div className="gallery-viewport">
+              {participantCount > 0 ? (
+                <MotionConfig reducedMotion="user" transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
+                  <motion.ul layout className="people" data-speaker-warning={highlightedSpeakerIsLive || undefined} data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
+                    <AnimatePresence initial={false} mode="popLayout">
+                      {joined && (
+                        <ParticipantTile
+                          key={`self-${joined.self.id}`}
+                          info={joined.self}
+                          me
+                          stream={call.micStream}
+                          track={analysis.tracks[joined.self.id]}
+                          muted={muted}
+                          soundMenuOpen={soundMenuIsMe && soundMenuTarget !== null}
+                          onSoundMenu={setSoundMenuTarget}
+                          evidencePulse={speakerHighlight?.trackId === joined.self.id ? speakerHighlight.pulse : undefined}
+                          video={camera}
+                        />
+                      )}
+                      {peers.map((p) => (
+                        <ParticipantTile
+                          key={`peer-${p.info.id}`}
+                          info={p.info}
+                          stream={p.stream}
+                          state={PEER_STATE_TEXT[p.state]}
+                          tone={p.state === "connected" ? "ok" : p.state === "failed" ? "bad" : "wait"}
+                          color={colors.current.get(p.info.id)}
+                          soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
+                          onSoundMenu={setSoundMenuTarget}
+                          evidencePulse={speakerHighlight?.trackId === p.info.id ? speakerHighlight.pulse : undefined}
+                          video={p.video}
+                          muted={p.muted}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </motion.ul>
+                </MotionConfig>
+              ) : <p className="meeting-wait" role="status">통화 공간에 연결하고 있어요…</p>}
+            </div>
+            {status === "failed" && <p className="meeting-notice">통화 연결이 끊겼어요. 네트워크 연결을 확인하고 다시 입장해 주세요.</p>}
+            {error && <p className="error meeting-notice" role="alert">{error}</p>}
+            {joined && participantCount === 1 && <p className="meeting-caption">아직 나만 있어요. 초대 링크를 공유해 통화를 시작하세요.</p>}
+          </motion.div>
 
-        <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} peers={peers} ready={call.chatReady}
-          onSend={call.sendChat} onClose={closeChat} />
+          <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} peers={peers} ready={call.chatReady}
+            onSend={call.sendChat} onClose={closeChat} />
+        </div>
 
         <div className="meeting-toolbar" role="group" aria-label="통화 제어">
           <div className="toolbar-people"><PeopleIcon /><span><span className="toolbar-people-label">참가자 </span><strong>{participantCount}</strong><span className="capacity"> / {maxPeople}</span></span></div>

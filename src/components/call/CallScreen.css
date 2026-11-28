@@ -40,7 +40,8 @@ main[data-view="call"] .log { max-height: 100px; }
 .panel-toggle svg { width: 18px; height: 18px; }
 .panel-toggle[aria-expanded="true"] { color: #b9d6cd; }
 .panel-toggle:hover { background: #292d33; color: #e4efeb; }
-.meeting-stage { --gallery-gap: 12px; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; padding: 16px 28px 24px; }
+.meeting-stage-area { position: relative; isolation: isolate; flex: 1; min-width: 0; min-height: 0; display: flex; overflow: clip; }
+.meeting-stage { --gallery-gap: 12px; flex: 1; min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; padding: 16px 28px 24px; }
 .gallery-viewport { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; container-type: size; }
 /* 높이가 부족하면 갤러리 전체의 너비를 줄인다. 카드 비율과 두 방향의 간격은 유지한다. */
 .people {
