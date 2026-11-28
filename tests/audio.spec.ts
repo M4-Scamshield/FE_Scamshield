@@ -40,8 +40,11 @@ test("microphone gain reaches WebRTC and analysis; mute and hangup release captu
   await join(other, "상대방");
   await expect(page.getByTestId("status")).toHaveText("통화 중");
   await openSound(page);
-  const baseline = await rms(page);
-  expect(baseline).toBeGreaterThan(0.03);
+  let baseline = 0;
+  await expect.poll(async () => {
+    baseline = await rms(page);
+    return baseline;
+  }).toBeGreaterThan(0.03);
   await expect.poll(() => rms(other, true)).toBeGreaterThan(0.02);
   await page.getByRole("slider", { name: "내 마이크", exact: true }).fill("50");
   expect(await rms(page)).toBeCloseTo(baseline * 0.5, 2);
@@ -118,7 +121,7 @@ test("saved settings survive a new call and fit on mobile", async ({ page }) => 
   await page.getByRole("slider", { name: "내 마이크", exact: true }).press("Escape");
   await expect(page.getByRole("heading", { name: "사운드 설정" })).not.toBeVisible();
   await openSound(page);
-  await page.getByRole("heading", { name: "통화 위험도" }).click();
+  await page.getByRole("heading", { name: "회의룸: audio-test" }).click();
   await expect(page.getByRole("heading", { name: "사운드 설정" })).not.toBeVisible();
 });
 
@@ -161,7 +164,7 @@ test("card context controls update peer playback and microphone, sharing toolbar
   await expect(peerMenu.getByRole("slider")).toHaveValue("60");
   await expect(page.getByRole("heading", { name: "사운드 설정", exact: true })).not.toBeVisible();
   await page.screenshot({ path: "test-results/card-sound-desktop.png", fullPage: true });
-  await page.getByRole("heading", { name: "통화 위험도" }).click();
+  await page.getByRole("heading", { name: "회의룸: audio-test" }).click();
   await expect(peerMenu).toHaveCount(0);
 
   const baseline = await rms(page);

@@ -1,14 +1,13 @@
-/* 통화 공간은 어둡게, 보호 정보는 밝게 분리한다. */
+/* 통화와 분석 화면이 같은 통화 세션과 어두운 배경을 공유한다. */
 main[data-view="call"] { max-width: none; padding: 0; height: 100dvh; display: flex; flex-direction: column; }
 main[data-view="call"] .stage { flex: 1; min-height: 0; }
 main[data-view="call"] .logbox { flex: none; margin: 0; border: 0; border-top: 1px solid #25282e; border-radius: 0; background: #131518; }
 main[data-view="call"] .logbox summary { padding: 4px 22px; font-size: var(--text-small); }
 main[data-view="call"] .log { max-height: 100px; }
-.call-layout { --watch: #909ba4; --sidebar-width: 360px; display: grid; grid-template-columns: minmax(0, 1fr) var(--sidebar-width); height: 100%; background: #141619; }
-.call-layout[data-panel-open="false"] { --sidebar-width: 0px; }
-.call-layout[data-watch="listening"] { --watch: #197c65; }
-.call-layout[data-watch="SUSPECT"], .call-layout[data-watch="degraded"] { --watch: #b9690c; }
-.call-layout[data-watch="WARN"] { --watch: #c24322; }
+.call-layout { --watch: #a6b2c0; display: grid; grid-template-columns: minmax(0, 1fr); height: 100%; background: #141619; }
+.call-layout[data-watch="listening"] { --watch: #83cbaa; }
+.call-layout[data-watch="SUSPECT"], .call-layout[data-watch="degraded"] { --watch: #efbd70; }
+.call-layout[data-watch="WARN"] { --watch: #ff9687; }
 
 /* 갤러리와 하단 통화 도구 */
 .meeting { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #141619; }
@@ -94,6 +93,10 @@ main[data-view="call"] .log { max-height: 100px; }
 .meeting-wait { margin: auto; color: #a4aeb9; font-size: var(--text-body); text-align: center; }
 .meeting-notice { flex: none; margin: 14px 0 0; padding: 12px; border-radius: 7px; background: #292321; color: #f0b6a3; font-size: var(--text-body); line-height: 1.6; }
 .meeting-toolbar { flex: none; min-height: 72px; padding: 12px 24px; border-top: 1px solid #292c32; background: #191b20; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.toolbar-session { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.call-protection-control { flex: none; padding-left: 18px; }
+.call-protection-control .live-protection-label { display: inline; }
+.call-protection-control .live-protection-switch:focus-visible { outline: 2px solid #a2dbbc; outline-offset: 3px; }
 .toolbar-people { display: flex; align-items: center; gap: 8px; color: #b6bec8; font-size: var(--text-small); line-height: 1.5; }
 .toolbar-people > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .toolbar-people svg { width: 18px; height: 18px; }
@@ -415,11 +418,15 @@ main[data-view="call"] .log { max-height: 100px; }
 }
 @media (max-width: 600px) {
   .meeting-toolbar { grid-template-columns: 1fr auto; }
+  .toolbar-session { grid-column: 1; grid-row: 1; gap: 10px; }
+  .call-protection-control { gap: 6px; padding-left: 10px; }
   .toolbar-people { grid-column: 1; grid-row: 1; }
   .leave-button { grid-column: 2; grid-row: 1; }
   .controls { grid-column: 1 / -1; grid-row: 2; }
 }
 @media (max-width: 480px) {
+  .toolbar-session .toolbar-people-label { display: none; }
+  .call-protection-control .live-protection-label { font-size: .75rem; }
   .sound-menu { position: static; }
   .meeting-toolbar { position: relative; padding: 12px; gap: 12px 8px; }
   .sound-settings { bottom: calc(100% + 8px); left: 12px; right: 12px; transform: none; width: auto; max-height: 60dvh; }
@@ -441,4 +448,43 @@ main[data-view="call"] .log { max-height: 100px; }
   .tactic-chevron { transition: none; }
   .speaker-warning-highlight { animation: none; }
 
+}
+
+.meeting-head.meeting-head-unified { min-height: 64px; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 0 28px; border-bottom: 1px solid #343d46; }
+.meeting-navigation { display: flex; align-items: center; align-self: stretch; gap: 24px; min-width: 0; }
+.call-brand { flex: none; display: flex; align-items: center; gap: 10px; margin: 0; color: #f1f5f7; font-size: 1.25rem; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+.call-brand .brand-logo { flex: none; width: 30px; height: 30px; }
+.meeting-view-tabs { display: flex; align-items: stretch; align-self: stretch; gap: 28px; min-width: 0; padding-left: 24px; border-left: 1px solid #343d46; overflow-x: auto; scrollbar-width: none; }
+.meeting-view-tabs::-webkit-scrollbar { display: none; }
+.meeting-view-tabs .room { display: flex; flex: none; max-width: 240px; margin: 0; }
+.meeting-view-tabs [role="tab"] { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 64px; padding: 12px 2px; border: 0; border-radius: 0; background: transparent; color: #9aa8b5; font-size: 1rem; font-weight: 500; white-space: nowrap; }
+.meeting-view-tabs .room [role="tab"] { min-width: 0; max-width: 100%; color: #dfe7ed; }
+.meeting-view-tabs .room [role="tab"] > span { overflow: hidden; text-overflow: ellipsis; }
+.meeting-view-tabs [role="tab"]:hover { color: #d7eee4; }
+.meeting-view-tabs [role="tab"][aria-selected="true"] { color: #b6eed7; font-weight: 600; }
+.meeting-view-tabs [role="tab"][aria-selected="true"]::after { content: ""; position: absolute; inset: auto 0 0; height: 3px; background: #7be0b6; }
+.meeting-view-tabs [role="tab"]:focus-visible { outline: 2px solid #a2dbbc; outline-offset: -3px; }
+.meeting-head-unified .meeting-meta { grid-column: 2; grid-row: 1; width: auto; }
+.call-layout[data-analysis-open="true"] .meeting-stage { padding-top: 20px; }
+@media (max-width: 1100px) {
+  .meeting-head.meeting-head-unified { padding-inline: 18px; }
+  .meeting-navigation { gap: 18px; }
+  .meeting-view-tabs { gap: 20px; padding-left: 18px; }
+  .meeting-head-unified .status-message { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+@media (max-width: 800px) {
+  .meeting-head.meeting-head-unified { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 8px 18px 0; }
+  .meeting-head-unified .meeting-navigation { display: contents; }
+  .call-brand { grid-column: 1; grid-row: 1; font-size: 1.125rem; gap: 8px; }
+  .call-brand .brand-logo { width: 24px; height: 24px; }
+  .meeting-view-tabs { grid-column: 1 / -1; grid-row: 2; padding: 0; border: 0; }
+  .meeting-view-tabs [role="tab"] { min-height: 34px; padding: 6px 2px 8px; font-size: .875rem; }
+  .meeting-head-unified .meeting-meta { gap: 8px; }
+  .meeting-head-unified .status-message { max-width: 100px; }
+  .meeting-head-unified .timer { padding-left: 8px; }
+  .call-layout[data-analysis-open="true"] .meeting-stage { padding-top: 16px; }
+}
+@media (max-width: 480px) {
+  .meeting-view-tabs { gap: 16px; }
+  .meeting-view-tabs .room { max-width: clamp(96px, 30vw, 144px); }
 }
