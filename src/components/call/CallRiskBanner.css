@@ -1,0 +1,30 @@
+.meeting-warning-layer { position: relative; z-index: 8; flex: none; height: 0; }
+.call-risk-banner { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: flex-start; gap: 16px; width: min(620px, calc(100% - 32px)); padding: 20px 22px; border-radius: 18px; background: #cf3748; color: #fff; box-shadow: 0 4px 16px #40182024; animation: call-risk-breathe 3s ease-in-out infinite; }
+.call-risk-message { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 16px; }
+.call-risk-siren { flex: none; width: 30px; height: 30px; margin-top: 2px; }
+.call-risk-copy { min-width: 0; }
+.call-risk-banner h2 { margin: 0; color: #fff; font-size: 1.25rem; font-weight: var(--weight-bold); line-height: 1.5; letter-spacing: -.03em; word-break: keep-all; }
+.call-risk-banner p { margin: 10px 0 0; color: #fff; font-size: var(--text-body); font-weight: var(--weight-medium); line-height: 1.65; word-break: keep-all; }
+.call-risk-controls { position: absolute; top: 20px; right: 18px; }
+.call-risk-banner h2 { padding-right: 34px; }
+.call-risk-controls button { display: grid; place-items: center; width: 30px; height: 30px; padding: 3px; border: 0; border-radius: 5px; background: transparent; color: #fff; }
+.call-risk-controls button:hover { background: #ffffff1c; }
+.call-risk-controls button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.call-risk-controls svg { width: 24px; height: 24px; }
+@keyframes call-risk-breathe { 0%, 100% { background-color: #c33443; } 50% { background-color: #d63b4b; } }
+@media (max-width: 600px) {
+  .call-risk-banner { gap: 8px; padding: 16px; border-radius: 14px; }
+  .call-risk-message { gap: 10px; }
+  .call-risk-siren { width: 24px; height: 24px; }
+  .call-risk-banner h2 { font-size: 1rem; }
+  .call-risk-banner p { margin-top: 7px; font-size: .8125rem; }
+  .call-risk-controls { top: 16px; right: 12px; }
+  .call-risk-controls button { width: 28px; height: 28px; }
+  .call-risk-controls svg { width: 22px; height: 22px; }
+}
+@media (max-width: 380px) {
+  .call-risk-banner { padding: 14px 12px; }
+  .call-risk-message { gap: 8px; }
+  .call-risk-controls { top: 14px; right: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .call-risk-banner { animation: none; } }

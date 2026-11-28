@@ -9,9 +9,9 @@ import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { useSpeaking } from "../../hooks/call/useSpeaking";
 import { useChatConversations } from "../../hooks/call/useChatConversations";
-import { AnalysisGuardian } from "../common/AnalysisGuardian";
 import { SoundSettings } from "./SoundSettings";
 import { ChatPanel } from "./ChatPanel";
+import { CallRiskBanner } from "./CallRiskBanner";
 import { ParticipantSoundMenu, type SoundMenuTarget } from "./ParticipantSoundMenu";
 import { DEFAULT_PEER_SOUND } from "../../hooks/call/useSoundSettings";
 import type { UploaderState } from "../../services/analysis/PcmUploader";
@@ -47,14 +47,6 @@ const WATCH_TEXT: Record<WatchState, string> = {
   WARN: "위험 감지",
 };
 
-const TRACK_TEXT: Record<UploaderState, string> = {
-  connecting: "분석 연결 중",
-  open: "AI 청취 중",
-  retrying: "분석 끊김 · 재연결 중",
-  stopped: "분석 꺼짐",
-  rejected: "분석 거절됨",
-};
-
 /** 실제 연결 상태로만 정한다. 음성이 분석 서버에 닿고 있을 때만 listening 이다 */
 function watchState(analysis: ReturnType<typeof useAnalysis>): { state: WatchState; degraded: boolean } {
   const { status, tracks, streamDown, alert } = analysis;
@@ -71,6 +63,9 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [analysisView, setAnalysisView] = useState<"risk" | "findings">("risk");
+  const [warningOpen, setWarningOpen] = useState(false);
+  const warned = useRef(false);
   const [transcriptSpeaker, setTranscriptSpeaker] = useState<string | null>(null);
   const revealTranscript = () => flushSync(() => setTranscriptSpeaker(null));
   const [chatOpen, setChatOpen] = useState(false);
@@ -99,8 +94,22 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
     "--gallery-rows": Math.max(1, Math.ceil(participantCount / galleryColumns)),
   } as CSSProperties;
   const analysis = useAnalysis(call.micStream, joined);
+  useEffect(() => {
+    if (analysis.status === "off" || analysis.status === "error") {
+      warned.current = false;
+      setWarningOpen(false);
+    } else if (analysis.status === "on" && analysis.alert?.level === "WARN" && !warned.current) {
+      warned.current = true;
+      setWarningOpen(true);
+      setSoundMenuTarget(null);
+    }
+  }, [analysis.status, analysis.alert?.level]);
   // 전사의 trackId = 참가자 id. 지금 방에 있는 사람만 타일 강조 대상
   const liveTracks = new Set([...(joined ? [joined.self.id] : []), ...peers.map((peer) => peer.info.id)]);
+  const warningEvidence = new Set([...(analysis.alert?.evidenceSeqs ?? []), ...(analysis.alert?.findings ?? []).flatMap((finding) => finding.evidenceSeqs)]);
+  const dangerousTracks = new Set(analysis.status === "on" && analysis.alert?.level === "WARN"
+    ? analysis.lines.filter((line) => line.kind === "SPEECH" && warningEvidence.has(line.seq)
+      && line.trackId !== joined?.self.id && liveTracks.has(line.trackId)).map((line) => line.trackId) : []);
   const highlightedSpeakerIsLive = speakerHighlight !== null && liveTracks.has(speakerHighlight.trackId);
 
   useEffect(() => {
@@ -191,12 +200,16 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
           </div>
         </div>
 
+        {warningOpen && analysis.status === "on" && analysis.alert?.level === "WARN" && <div className="meeting-warning-layer">
+          <CallRiskBanner onClose={() => setWarningOpen(false)} />
+        </div>}
+
         <div className="meeting-stage-area">
           <motion.div className="meeting-stage" layoutScroll>
             <div className="gallery-viewport">
               {participantCount > 0 ? (
                 <MotionConfig reducedMotion="user" transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}>
-                  <motion.ul layout className="people" data-speaker-warning={highlightedSpeakerIsLive || undefined} data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
+                  <motion.ul layout className="people" data-testid="people" aria-label={`참가자 ${participantCount}명`} style={galleryStyle}>
                     <AnimatePresence initial={false} mode="popLayout">
                       {joined && (
                         <ParticipantTile
@@ -223,6 +236,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
                           soundMenuOpen={soundMenuTarget?.participantId === p.info.id}
                           onSoundMenu={setSoundMenuTarget}
                           evidencePulse={speakerHighlight?.trackId === p.info.id ? speakerHighlight.pulse : undefined}
+                          danger={dangerousTracks.has(p.info.id)}
                           video={p.video}
                           muted={p.muted}
                         />
@@ -279,6 +293,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         <div className="safety-content">
           <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
             <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={(trackId) => highlightSpeaker(trackId, false)} onRevealTranscript={revealTranscript}
+              view={analysisView} onViewChange={setAnalysisView}
               statusIndicator={<div className="watch-status" role="status" data-testid="watch">
                 <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
               </div>}
@@ -325,6 +340,7 @@ interface ParticipantTileProps {
   soundMenuOpen: boolean;
   onSoundMenu: (target: SoundMenuTarget) => void;
   evidencePulse?: number;
+  danger?: boolean;
   video?: MediaStream | null;
 }
 
@@ -341,6 +357,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
   soundMenuOpen,
   onSoundMenu,
   evidencePulse,
+  danger = false,
   video = null,
 }, ref) {
   const present = useIsPresent();
@@ -359,6 +376,7 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       data-track={track}
       data-speaking={voice.speaking || undefined}
       data-evidence-active={evidencePulse !== undefined || undefined}
+      data-risk={danger ? "danger" : undefined}
       data-testid={`person-${info.id}`}
       data-video={video ? "on" : undefined}
       data-muted={muted || undefined}
@@ -390,21 +408,13 @@ const ParticipantTile = forwardRef<HTMLLIElement, ParticipantTileProps>(function
       <div className="participant-surface">
         {video && <TileVideo stream={video} mirror={me} />}
         {evidencePulse !== undefined && <span key={evidencePulse} className="speaker-warning-highlight" aria-hidden />}
-        {track && <span className="participant-badge"><ShieldIcon />{TRACK_TEXT[track]}</span>}
         <motion.div layout="position" className="participant-placeholder"><span className="initial" aria-hidden>{Array.from(info.name)[0]}</span><span className="camera-caption">카메라 꺼짐</span></motion.div>
         <motion.div layout="position" className="participant-bottom">
           <span className="pname">{muted ? <MicOffIcon /> : <MicIcon />}<span className="participant-name" title={info.name}>{info.name}</span>{me && <span className="me">(나)</span>}</span>
+          {danger && <span className="participant-risk-label">위험 발화 감지</span>}
         </motion.div>
         {state && <span className="pstate">{state}</span>}
       </div>
-      {evidencePulse !== undefined && <div key={`warning-${evidencePulse}`} className="speaker-warning-guide" role="status" aria-atomic="true">
-        <AnalysisGuardian state="warning" />
-        <div className="speaker-warning-speech">
-          <span className="speaker-warning-name" title={info.name}>{info.name}{me ? " (나)" : ""}</span>
-          <strong>위험 인물입니다.</strong>
-          <span>주의하세요!</span>
-        </div>
-      </div>}
     </motion.li>
   );
 });
