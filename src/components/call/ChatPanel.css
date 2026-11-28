@@ -8,7 +8,8 @@
 .chat-move > svg { width: 18px; height: 18px; color: #b9d6cd; }
 .chat-window[data-interacting="move"] .chat-move { cursor: grabbing; }
 .chat-move:focus-visible, .chat-resize-corner:focus-visible { outline: 2px solid #83cbaa; outline-offset: -2px; border-radius: 4px; }
-.chat-recipient-row { flex: none; padding: 8px 14px; border-bottom: 1px solid #30383f; }
+.chat-recipient-row { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid #30383f; }
+.chat-other-unread { flex: none; padding: 3px 6px; border-radius: 10px; background: #28453b; color: #c1e9d5; font-size: .6875rem; white-space: nowrap; }
 .chat-recipient { width: 100%; min-width: 0; height: 30px; padding: 4px 28px 4px 8px; border: 1px solid #46535d; border-radius: 6px; background-color: #252e35; color: #dce6ec; font: inherit; font-size: var(--text-small); text-overflow: ellipsis; cursor: pointer; }
 .chat-recipient:focus-visible { outline: 2px solid #83cbaa; outline-offset: 2px; }
 .chat-close { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; border-radius: 6px; background: transparent; color: #aebac5; }

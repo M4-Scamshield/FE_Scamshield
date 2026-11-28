@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatIcon, CloseIcon } from "../common/icons";
-import { CHAT_MAX_LENGTH, type ChatMessage } from "../../types/chat";
+import { CHAT_MAX_LENGTH } from "../../types/chat";
 import { useChatWindow } from "../../hooks/call/useChatWindow";
-import type { PeerView } from "../../services/webrtc/MeshClient";
+import type { useChatConversations } from "../../hooks/call/useChatConversations";
 import "./ChatPanel.css";
 
 interface ChatPanelProps {
   open: boolean;
-  messages: ChatMessage[];
+  chat: ReturnType<typeof useChatConversations>;
   selfId?: string;
-  peers: PeerView[];
   ready: boolean;
   onSend: (text: string, recipientId?: string) => void;
   onClose: () => void;
@@ -17,13 +16,12 @@ interface ChatPanelProps {
 
 const clock = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" });
 
-export function ChatPanel({ open, messages, selfId, peers, ready, onSend, onClose }: ChatPanelProps) {
-  const [draft, setDraft] = useState("");
+export function ChatPanel({ open, chat, selfId, ready, onSend, onClose }: ChatPanelProps) {
+  const { conversationId, setConversationId, conversations, recipient, messages, draft, setDraft, unreadCounts, unreadCount } = chat;
   const [error, setError] = useState<string | null>(null);
   const [newMessages, setNewMessages] = useState(false);
-  const [recipient, setRecipient] = useState<{ id: string; name: string } | null>(null);
-  const selectedPeer = recipient ? peers.find((peer) => peer.info.id === recipient.id) : undefined;
-  const canSend = recipient ? !!selectedPeer?.chatReady : ready;
+  const canSend = conversationId ? !!recipient?.ready : ready;
+  const latestMessage = messages.at(-1);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -48,19 +46,24 @@ export function ChatPanel({ open, messages, selfId, peers, ready, onSend, onClos
   }, [open]);
 
   useEffect(() => {
+    if (open) scrollToLatest();
+    setError(null);
+  }, [conversationId, open]);
+
+  useEffect(() => {
     if (!open) return;
-    if (atBottom.current || messages.at(-1)?.senderId === selfId) scrollToLatest();
+    if (atBottom.current || latestMessage?.senderId === selfId) scrollToLatest();
     else setNewMessages(true);
-  }, [messages, open, selfId]);
+  }, [latestMessage, open, selfId]);
 
   const send = () => {
     if (!draft.trim()) return;
     if (!canSend) {
-      setError(recipient && !selectedPeer ? "선택한 참가자가 통화를 나갔어요. 받는 사람을 다시 선택해 주세요." : "참가자와 채팅 연결을 기다리고 있어요. 잠시 후 다시 보내 주세요.");
+      setError(conversationId && !recipient?.ready && recipient?.departed ? "선택한 참가자가 통화를 나갔어요. 받는 사람을 다시 선택해 주세요." : "참가자와 채팅 연결을 기다리고 있어요. 잠시 후 다시 보내 주세요.");
       return;
     }
     try {
-      onSend(draft, recipient?.id);
+      onSend(draft, conversationId || undefined);
       setDraft("");
       setError(null);
       inputRef.current?.focus();
@@ -90,16 +93,17 @@ export function ChatPanel({ open, messages, selfId, peers, ready, onSend, onClos
           <button type="button" className="chat-close" onClick={onClose} aria-label="채팅 닫기" title="채팅 닫기"><CloseIcon /></button>
         </div>
         <div className="chat-recipient-row">
-          <select className="chat-recipient" aria-label="채팅 받는 사람" value={recipient?.id ?? ""}
+          <select className="chat-recipient" aria-label="채팅 대화 선택" value={conversationId}
             onChange={(event) => {
-              const peer = peers.find((item) => item.info.id === event.target.value);
-              setRecipient(peer ? { id: peer.info.id, name: peer.info.name } : null);
+              setConversationId(event.target.value);
               setError(null);
             }}>
-            <option value="">모든 참가자</option>
-            {peers.map((peer, index) => <option key={peer.info.id} value={peer.info.id}>{peer.info.name}{peers.filter((item) => item.info.name === peer.info.name).length > 1 ? ` (${peers.slice(0, index + 1).filter((item) => item.info.name === peer.info.name).length})` : ""}</option>)}
-            {recipient && !selectedPeer && <option value={recipient.id} disabled>{recipient.name} (퇴장)</option>}
+            <option value="">모든 참가자{unreadCounts.get("") ? ` · 새 메시지 ${unreadCounts.get("")}` : ""}</option>
+            {conversations.map((item, index) => <option key={item.id} value={item.id}>
+              {item.name}{conversations.filter((other) => other.name === item.name).length > 1 ? ` (${conversations.slice(0, index + 1).filter((other) => other.name === item.name).length})` : ""}{item.departed ? " (퇴장)" : ""}{unreadCounts.get(item.id) ? ` · 새 메시지 ${unreadCounts.get(item.id)}` : ""}
+            </option>)}
           </select>
+          {unreadCount > 0 && <span className="chat-other-unread" role="status" aria-label={`다른 대화에 읽지 않은 메시지 ${unreadCount}개`}>새 메시지 {unreadCount}</span>}
         </div>
         <div className="chat-log-wrap">
           <div className="chat-log" role="log" aria-label="채팅 메시지" aria-live={open ? "polite" : "off"} aria-relevant="additions" ref={logRef} tabIndex={open ? 0 : -1}

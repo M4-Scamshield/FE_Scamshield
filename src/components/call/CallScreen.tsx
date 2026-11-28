@@ -8,6 +8,7 @@ import { useAnalysis } from "../../hooks/analysis/useAnalysis";
 import { AnalysisPanel } from "../analysis/AnalysisPanel";
 import { TranscriptPanel } from "../analysis/TranscriptPanel";
 import { useSpeaking } from "../../hooks/call/useSpeaking";
+import { useChatConversations } from "../../hooks/call/useChatConversations";
 import { AnalysisGuardian } from "../common/AnalysisGuardian";
 import { SoundSettings } from "./SoundSettings";
 import { ChatPanel } from "./ChatPanel";
@@ -73,12 +74,9 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const [transcriptSpeaker, setTranscriptSpeaker] = useState<string | null>(null);
   const revealTranscript = () => flushSync(() => setTranscriptSpeaker(null));
   const [chatOpen, setChatOpen] = useState(false);
-  const [readChatCount, setReadChatCount] = useState(0);
   const chatButtonRef = useRef<HTMLButtonElement>(null);
-  const unreadChatCount = chatOpen ? 0 : Math.max(0, call.incomingChatCount - readChatCount);
-  useEffect(() => {
-    if (chatOpen) setReadChatCount(call.incomingChatCount);
-  }, [chatOpen, call.incomingChatCount]);
+  const chat = useChatConversations(call.messages, joined?.self.id, peers, chatOpen);
+  const unreadChatCount = chat.unreadCount;
   const closeChat = () => {
     setChatOpen(false);
     chatButtonRef.current?.focus({ preventScroll: true });
@@ -239,7 +237,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             {joined && participantCount === 1 && <p className="meeting-caption">아직 나만 있어요. 초대 링크를 공유해 통화를 시작하세요.</p>}
           </motion.div>
 
-          <ChatPanel open={chatOpen} messages={call.messages} selfId={joined?.self.id} peers={peers} ready={call.chatReady}
+          <ChatPanel open={chatOpen} chat={chat} selfId={joined?.self.id} ready={call.chatReady}
             onSend={call.sendChat} onClose={closeChat} />
         </div>
 
