@@ -10,14 +10,21 @@ test("speaking borders follow each participant's audio and stop on silence or mu
   const self = page.getByTestId("person-participant-1");
   await expect(self).toHaveAttribute("data-speaking", "true");
   await expect(self.locator(".trace, .pstate")).toHaveCount(0);
-  expect(await self.evaluate((element) => getComputedStyle(element, "::after").borderTopWidth)).toBe("3px");
+  const frameStyle = () => self.evaluate((element) => {
+    const style = getComputedStyle(element, "::after");
+    return { shadow: style.boxShadow, opacity: style.opacity };
+  });
+  const steadyFrame = { shadow: "rgb(0, 237, 136) 0px 0px 0px 3px", opacity: "1" };
+  expect(await frameStyle()).toEqual(steadyFrame);
   const strength = () => self.evaluate((element) => Number((element as HTMLElement).style.getPropertyValue("--voice-level")));
   await expect.poll(strength).toBeGreaterThan(0.6);
   await page.evaluate(() => { (window as any).__testCaptureGain.gain.value = 0.04; });
   await expect.poll(strength).toBeLessThan(0.6);
   await expect(self).toHaveAttribute("data-speaking", "true");
+  expect(await frameStyle()).toEqual(steadyFrame);
   await page.evaluate(() => { (window as any).__testCaptureGain.gain.value = 0.2; });
   await expect.poll(strength).toBeGreaterThan(0.9);
+  expect(await frameStyle()).toEqual(steadyFrame);
   await page.evaluate(() => { (window as any).__testCaptureGain.gain.value = 0; });
   await expect(self).not.toHaveAttribute("data-speaking");
   await page.evaluate(() => { (window as any).__testCaptureGain.gain.value = 0.1; });
@@ -44,7 +51,7 @@ test("speaking borders follow each participant's audio and stop on silence or mu
   await page.screenshot({ path: "test-results/speaking-border.png", fullPage: true });
 });
 
-test("camera toggles preserve the full speaking border over video", async ({ page }) => {
+test("camera toggles preserve the speaking frame outside the video", async ({ page }) => {
   await join(page, "나");
   const self = page.getByTestId("person-participant-1");
   await page.getByRole("button", { name: "카메라 켜기", exact: true }).click();
@@ -55,10 +62,17 @@ test("camera toggles preserve the full speaking border over video", async ({ pag
   const border = await self.evaluate((element) => {
     const card = element.getBoundingClientRect();
     const style = getComputedStyle(element, "::after");
-    return { height: parseFloat(style.height), cardHeight: card.height, width: style.borderTopWidth };
+    return {
+      height: parseFloat(style.height), cardHeight: card.height,
+      width: parseFloat(style.width), cardWidth: card.width,
+      inset: style.inset, shadow: style.boxShadow, border: style.borderTopWidth,
+    };
   });
-  expect(border.width).toBe("3px");
-  expect(border.height).toBeGreaterThan(border.cardHeight * 0.9);
+  expect(border.inset).toBe("-1px");
+  expect(border.shadow).toBe("rgb(0, 237, 136) 0px 0px 0px 3px");
+  expect(border.border).toBe("0px");
+  expect(border.height).toBeCloseTo(border.cardHeight, 0);
+  expect(border.width).toBeCloseTo(border.cardWidth, 0);
   await page.screenshot({ path: "test-results/speaking-video.png", fullPage: true });
   await page.getByRole("button", { name: "카메라 끄기", exact: true }).click();
   await expect(self).not.toHaveAttribute("data-video");
