@@ -71,6 +71,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const seconds = useCallTimer(status === "connected");
   const [copied, setCopied] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [analysisView, setAnalysisView] = useState<"risk" | "findings">("risk");
   const [transcriptSpeaker, setTranscriptSpeaker] = useState<string | null>(null);
   const revealTranscript = () => flushSync(() => setTranscriptSpeaker(null));
   const [chatOpen, setChatOpen] = useState(false);
@@ -279,6 +280,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
         <div className="safety-content">
           <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
             <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={(trackId) => highlightSpeaker(trackId, false)} onRevealTranscript={revealTranscript}
+              view={analysisView} onViewChange={setAnalysisView}
               statusIndicator={<div className="watch-status" role="status" data-testid="watch">
                 <span className="watch-dot" aria-hidden /><strong>{WATCH_TEXT[watch.state]}</strong>
               </div>}

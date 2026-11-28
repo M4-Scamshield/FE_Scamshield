@@ -21,6 +21,16 @@ export interface Judged {
 
 const NOT_JUDGED: Judged = { analyzedTo: 0, score: null, action: null, reason: null };
 
+/** 현재 브라우저에서 점수를 수신한 시각. 서버의 판단 시각이나 과거 이력은 아니다. */
+export interface RiskSample {
+  receivedAt: number;
+  elapsedMs: number;
+  score: number;
+  segment: number;
+}
+
+const RISK_HISTORY_LIMIT = 1200;
+
 /**
  * AI 가 위험으로 판정한 사기 수법 하나 (예: F1 자산 넘기기).
  * 수법마다 판정 근거·대응 안내·근거가 된 발화가 따로 있다. 서버는 먼저 잡힌 순서로 보낸다
@@ -90,10 +100,32 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
   const [streamDown, setStreamDown] = useState(false);
   // AI 판단 진행: 어디까지 판단했고 최근 위험도가 얼마인지. 정상 판정은 SSE 로 오지 않아서 상태 API 로 읽는다
   const [judged, setJudged] = useState<Judged>(NOT_JUDGED);
+  const [riskHistory, setRiskHistory] = useState<RiskSample[]>([]);
+  const riskStartRef = useRef<number | null>(null);
+  const warningScoreRef = useRef<number | null>(null);
+  const riskSegmentRef = useRef(0);
+  const riskGapRef = useRef(false);
   const callRef = useRef<AnalysisCall | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const uploadersRef = useRef(new Map<string, PcmUploader>());
   const lastSeqRef = useRef(0);
+
+  const recordRisk = useCallback((score: number | null | undefined, receivedAt = Date.now()) => {
+    if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 100 || riskStartRef.current === null) return;
+    if (riskGapRef.current) {
+      riskSegmentRef.current += 1;
+      riskGapRef.current = false;
+    }
+    const sample: RiskSample = { receivedAt, elapsedMs: Math.max(0, receivedAt - riskStartRef.current), score, segment: riskSegmentRef.current };
+    setRiskHistory((previous) => {
+      const last = previous.at(-1);
+      if (last && sample.elapsedMs < last.elapsedMs) return previous;
+      // 같은 점수가 이어지면 양 끝만 남겨 장시간 통화의 기록량을 제한한다.
+      const beforeLast = previous.at(-2);
+      const flat = last?.score === score && last.segment === sample.segment && beforeLast?.score === score && beforeLast.segment === sample.segment;
+      return [...(flat ? previous.slice(0, -1) : previous), sample].slice(-RISK_HISTORY_LIMIT);
+    });
+  }, []);
 
   const onTrackState = useCallback((trackId: string, state: UploaderState, detail?: string) => {
     setTracks((prev) => ({ ...prev, [trackId]: state }));
@@ -125,6 +157,11 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
     setLines([]);
     setStreamDown(false);
     setJudged(NOT_JUDGED);
+    setRiskHistory([]);
+    riskStartRef.current = null;
+    warningScoreRef.current = null;
+    riskSegmentRef.current = 0;
+    riskGapRef.current = false;
     setAlert(null);
     setWarnings([]);
     setAction(null);
@@ -135,6 +172,7 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
     if (callRef.current || !micStream || !joined) return;
     setError(null);
     setStatus("starting");
+    riskStartRef.current = Date.now();
     try {
       const call = await createAnalysisCall(joined.callId);
       callRef.current = call;
@@ -156,6 +194,8 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
         const d = fresh(e as MessageEvent);
         if (d) {
           const warning: AnalysisAlert = { ...d, receivedAt: Date.now() };
+          warningScoreRef.current = warning.score;
+          recordRisk(warning.score, warning.receivedAt);
           setAlert(warning);
           setWarnings((prev) => [...prev, warning]);
         }
@@ -172,7 +212,7 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
         setStreamDown(false);
       };
       // EventSource 가 알아서 다시 붙는다. 그동안 화면이 "듣는 중"으로 남지 않게 표시만 한다
-      source.onerror = () => setStreamDown(true);
+      source.onerror = () => { setStreamDown(true); riskGapRef.current = true; };
 
       startUpload(joined.self.id, micStream);
       setStatus("on");
@@ -181,7 +221,7 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
       setStatus("error");
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [micStream, joined, startUpload, disable]);
+  }, [micStream, joined, startUpload, disable, recordRisk]);
 
   // 방에 들어와 마이크가 준비되면 통화마다 한 번 자동으로 켠다.
   // 그 뒤 사용자가 토글로 끄면 꺼진 채로 둔다 (다시 켜는 건 토글). 실패해도 자동으로 다시 시도하지 않는다
@@ -195,26 +235,35 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
   // 정상 판정은 이벤트가 없으니 켜져 있는 동안 1.5초마다 판단 진행을 읽는다
   useEffect(() => {
     if (status !== "on") return;
+    let cancelled = false;
+    let polling = false;
     const tick = async () => {
       const call = callRef.current;
-      if (!call) return;
+      if (!call || polling) return;
+      polling = true;
       try {
         const s = await getAnalysisState(call);
-        if (callRef.current === call)
+        if (!cancelled && callRef.current === call) {
           setJudged({
             analyzedTo: s.analyzed_to ?? 0,
             score: s.current_score ?? null,
             action: s.action ?? null,
             reason: s.reason ?? null,
           });
+          // 경고를 우선 표시하는 기존 점수 정책을 그래프에도 동일하게 적용한다.
+          recordRisk(warningScoreRef.current ?? s.current_score);
+        }
       } catch {
+        if (!cancelled && callRef.current === call) riskGapRef.current = true;
         // 일시 오류는 다음 주기에 다시 읽는다. 연결 끊김 표시는 SSE·업로드 상태가 맡는다
+      } finally {
+        polling = false;
       }
     };
     void tick();
     const id = setInterval(tick, 1500);
-    return () => clearInterval(id);
-  }, [status]);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [status, recordRisk]);
 
   // 통화가 끝나면(마이크나 방이 사라지면) 분석도 끈다
   useEffect(() => {
@@ -236,5 +285,5 @@ export function useAnalysis(micStream: MediaStream | null, joined: JoinedInfo | 
     [action],
   );
 
-  return { status, error, alert, warnings, action, tracks, lines, streamDown, judged, enable, disable, reply };
+  return { status, error, alert, warnings, action, tracks, lines, streamDown, judged, riskHistory, enable, disable, reply };
 }

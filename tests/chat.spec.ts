@@ -103,6 +103,12 @@ test("floating chat preserves the gallery and safety panel, restores focus, and 
   expect((await page.locator(".call-chat").boundingBox())!.width).toBe(340);
   for (const width of [1024, 801, 800, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
+    await expect.poll(async () => {
+      const panel = await page.locator(".call-chat").boundingBox();
+      const area = await page.locator(".meeting-stage-area").boundingBox();
+      return !!panel && !!area && panel.x >= area.x && panel.x + panel.width <= area.x + area.width
+        && panel.y >= area.y && panel.y + panel.height <= area.y + area.height;
+    }).toBe(true);
     const bounds = await page.locator(".call-chat").boundingBox();
     const areaBounds = await page.locator(".meeting-stage-area").boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
