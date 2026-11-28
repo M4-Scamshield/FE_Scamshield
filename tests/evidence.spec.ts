@@ -103,13 +103,14 @@ test("evidence shortcuts reveal speech hidden by the selected participant filter
   await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
 });
 
-test("evidence previews select each utterance independently and keep the transcript visible", async ({ page, context }) => {
+test("evidence previews switch to live analysis and reveal the selected utterance", async ({ page, context }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await join(page, "나");
   const other = await context.newPage();
   await join(other, "상대방");
   await detect(page);
+  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
   await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
   const reason = page.getByTestId("analysis-reason");
   const disclosure = reason.getByRole("button", { name: "근거가 된 말 4개 보기", exact: true });
@@ -120,15 +121,18 @@ test("evidence previews select each utterance independently and keep the transcr
   await expect(options.first()).toContainText("상대방");
   await expect(options.first()).toContainText("지금 안전계좌로 이체하세요.");
   await expect(page.locator(".transcript-lines .flash")).toHaveCount(0);
-  const transcriptBefore = await page.getByTestId("transcript").boundingBox();
+  await expect(page.getByTestId("transcript")).toBeHidden();
   for (const [index, seq] of [2, 1, 4, 5].entries()) {
     await options.nth(index).click();
-    await expect(options.nth(index)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toBeFocused();
+    await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(`#line-${seq}`)).toHaveClass(/flash/);
     await expect(page.locator(`#line-${seq}`)).toBeInViewport();
     expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
     if (seq === 2 || seq === 1) await expect(page.getByTestId(`person-participant-${seq}`)).toHaveAttribute("data-evidence-active", "true");
     else await expect(page.locator(".person[data-evidence-active]")).toHaveCount(0);
+    await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+    await expect(options.nth(index)).toHaveAttribute("aria-pressed", "true");
   }
   await page.screenshot({ path: "test-results/evidence-options.png", fullPage: true, animations: "disabled" });
   await disclosure.click();
@@ -140,7 +144,7 @@ test("evidence previews select each utterance independently and keep the transcr
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test("risk and findings switch without moving the conversation", async ({ page }) => {
+test("findings hide the transcript and returning to live analysis restores it", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await join(page, "나");
   await detect(page);
@@ -153,6 +157,7 @@ test("risk and findings switch without moving the conversation", async ({ page }
   await expect(page.getByRole("meter", { name: "통화 위험도" })).toBeInViewport({ ratio: 1 });
   const transcriptBefore = await page.getByTestId("transcript").boundingBox();
   await next.click();
+  await expect(page.getByTestId("transcript")).toBeHidden();
   const reason = page.getByTestId("analysis-reason");
   await expect(reason.locator(".why-title")).toBeInViewport({ ratio: 1 });
   await expect(reason.locator(".why-text")).toBeInViewport({ ratio: 1 });
@@ -179,6 +184,7 @@ test("analysis tabs support keyboard navigation and mark results read while view
   await live.press("ArrowRight");
   await expect(results).toBeFocused();
   await expect(results).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("transcript")).toBeHidden();
   await expect(page.getByRole("tabpanel", { name: "분석 결과", exact: true })).toBeVisible();
   await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("warning", { data: JSON.stringify({
     eventSeq: 7, level: "WARN", score: 95, reason: "새로 확인된 위험 정황입니다.", evidenceSeqs: [2],
@@ -219,8 +225,9 @@ test("protection controls remain separate from scrolling analysis content", asyn
   expect(await toggle.boundingBox()).toEqual(before);
   await expect(toggle).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toBeInViewport({ ratio: 1 });
-  expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
+  await expect(page.getByTestId("transcript")).toBeHidden();
   await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
+  expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
   await expect(timeline).toBeInViewport({ ratio: 1 });
   expect(await live.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
   await page.screenshot({ path: "test-results/analysis-protection-separated.png", fullPage: true });
@@ -511,10 +518,12 @@ test("each risky tactic opens its own reason, advice and evidence lines", async 
   await older.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
   await expect(page.locator("#line-1")).toHaveClass(/flash/);
   await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
+  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
   await newest.getByRole("button", { name: "근거가 된 말 2개 보기" }).click();
   await newest.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").nth(1).click();
   await expect(page.locator("#line-2")).not.toHaveClass(/flash/);
   await expect(page.locator("#line-3")).toHaveClass(/flash/);
+  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
   await page.screenshot({ path: "test-results/tactics-panel-open.png", fullPage: true, animations: "disabled" });
 
   // 접기도 된다. 새 경고가 와도 직접 접은 것은 접힌 채로 둔다
@@ -670,7 +679,7 @@ test("collapsed protection badge reflects listening, connection loss, and detect
   await expect(indicator).toHaveCount(0);
 });
 
-test("long analysis keeps conversation visible and evidence navigation preserves both scroll areas", async ({ page }) => {
+test("findings use the full panel while speech keeps arriving and evidence restores the transcript", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1280, height: 720 });
   await join(page, "나");
@@ -691,39 +700,45 @@ test("long analysis keeps conversation visible and evidence navigation preserves
   const transcript = page.getByTestId("transcript");
   await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
   const analysis = page.getByRole("tabpanel", { name: "분석 결과", exact: true });
-  const list = transcript.getByRole("list", { name: "대화 기록", exact: true });
+  const list = transcript.locator(".transcript-lines");
   await expect(list.locator("li")).toHaveCount(35);
 
   for (const viewport of [{ width: 1280, height: 720 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
-    const heading = await transcript.getByRole("heading", { name: "대화 기록" }).boundingBox();
-    const bounds = await list.boundingBox();
-    expect(bounds!.height).toBeGreaterThan(200);
+    await expect(transcript).toBeHidden();
+    const bounds = await analysis.boundingBox();
+    const available = await page.locator(".analysis-scroll").boundingBox();
+    expect(bounds!.height).toBeGreaterThan(400);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
-    expect(heading!.y).toBeGreaterThan(0);
+    expect(bounds!.y + bounds!.height).toBeCloseTo(available!.y + available!.height, 0);
     expect(await analysis.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     expect(await page.locator(".safety-content").evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
   }
 
-  // Following new speech moves only the transcript; the analysis stays where it was read.
+  // New speech continues accumulating without moving the result being read.
   await analysis.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   const analysisTop = await analysis.evaluate((element) => element.scrollTop);
   await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
     eventSeq: 38, seq: 36, kind: "SPEECH", trackId: "participant-1", text: "새로운 대화입니다.",
   }) })));
   await expect(list.locator("li")).toHaveCount(36);
-  await expect.poll(() => list.evaluate((element) => element.scrollHeight - element.scrollTop - element.clientHeight)).toBeLessThan(2);
+  await expect(transcript).toBeHidden();
   expect(await analysis.evaluate((element) => element.scrollTop)).toBe(analysisTop);
   await page.screenshot({ path: "test-results/transcript-long-analysis.png", fullPage: true });
 
-  // The evidence link still reveals an older line without pushing the transcript out of view.
+  // Evidence switches to live analysis before revealing an older line.
   await page.getByRole("button", { name: "근거가 된 말 1개 보기", exact: true }).click();
   await page.getByRole("list", { name: "근거 발화 목록" }).getByRole("button").first().click();
+  await expect(transcript).toBeVisible();
+  await expect(page.getByRole("tab", { name: "실시간 분석", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#line-1")).toBeInViewport();
   await expect(page.getByTestId("person-participant-1")).toHaveAttribute("data-evidence-active", "true");
 
   // Reading older speech must not jump to the newest line when another utterance arrives.
   const readerTop = await list.evaluate((element) => element.scrollTop);
+  await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
+  await page.getByRole("tab", { name: "실시간 분석", exact: true }).click();
+  expect(await list.evaluate((element) => element.scrollTop)).toBe(readerTop);
   await page.evaluate(() => (window as any).__testAnalysisEvents.dispatchEvent(new MessageEvent("utterance", { data: JSON.stringify({
     eventSeq: 39, seq: 37, kind: "SPEECH", trackId: "participant-1", text: "이전 대화를 읽는 동안 새로 도착한 발화입니다.",
   }) })));
@@ -798,6 +813,7 @@ test.describe("judgment history", () => {
     await expect(page.locator("#line-2")).toHaveClass(/flash/);
     await expect(page.getByTestId("person-participant-2")).toHaveAttribute("data-evidence-active", "true");
 
+    await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     await original.scrollIntoViewIfNeeded();
     // 펼친 미리보기의 소수점 높이로 생기는 1px 미만의 경계 오차는 허용한다.
@@ -886,11 +902,10 @@ test.describe("mock panel preview", () => {
     await page.getByRole("button", { name: "위험 알림 닫기", exact: true }).click();
     await expect(page.getByRole("tab", { name: "분석 결과", exact: true })).toHaveAttribute("data-unread", "true");
     await sidebar.screenshot({ path: "test-results/mock-panel-risk.png", animations: "disabled" });
-    const transcriptBefore = await page.getByTestId("transcript").boundingBox();
     await page.getByRole("tab", { name: "분석 결과", exact: true }).click();
     await expect(page.getByTestId("analysis-reason")).toBeInViewport({ ratio: 1 });
     await expect(page.getByTestId("analysis-response")).toBeInViewport({ ratio: 1 });
-    expect(await page.getByTestId("transcript").boundingBox()).toEqual(transcriptBefore);
+    await expect(page.getByTestId("transcript")).toBeHidden();
     await sidebar.screenshot({ path: "test-results/mock-panel-findings.png", animations: "disabled" });
     await page.screenshot({ path: "test-results/mock-panel-full.png", fullPage: true, animations: "disabled" });
     await page.setViewportSize({ width: 390, height: 844 });
