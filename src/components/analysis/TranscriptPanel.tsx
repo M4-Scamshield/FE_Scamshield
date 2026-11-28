@@ -16,6 +16,7 @@ function EmptyConversationIcon() {
  * 경고의 근거가 된 발화(evidence)는 강조한다. 아래쪽을 보고 있을 때만 새 줄을 따라 내려간다.
  */
 export function TranscriptPanel({
+  hidden,
   selfId,
   selectedSpeaker,
   onSelectFilter,
@@ -28,6 +29,7 @@ export function TranscriptPanel({
   liveTracks,
   onSelectSpeaker,
 }: {
+  hidden: boolean;
   selfId: string | undefined;
   selectedSpeaker: string | null;
   onSelectFilter: (id: string | null) => void;
@@ -53,18 +55,18 @@ export function TranscriptPanel({
 
   useLayoutEffect(() => {
     const box = boxRef.current;
-    if (box && stickRef.current) box.scrollTop = box.scrollHeight;
-  }, [visibleLines.length, activeSpeaker]);
+    if (box && !hidden && stickRef.current) box.scrollTop = box.scrollHeight;
+  }, [visibleLines.length, activeSpeaker, hidden]);
 
   const onScroll = () => {
     const box = boxRef.current;
-    if (box) stickRef.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+    if (box && !hidden) stickRef.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
   };
 
   const hot = new Set(evidence);
 
   return (
-    <section className="transcript" data-testid="transcript" data-active={active}>
+    <section className="transcript" data-testid="transcript" data-active={active} hidden={hidden}>
       <div className="transcript-head">
         <div className="transcript-filters" role="group" aria-label="대화 기록 화자 필터">
           <h2 className="panel-section-title" aria-label="대화 기록"><button type="button" aria-label="대화 기록 전체" aria-pressed={activeSpeaker === null} onClick={() => selectSpeaker(null)}>대화 기록</button></h2>

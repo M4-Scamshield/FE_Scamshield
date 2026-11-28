@@ -67,7 +67,13 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
   const [warningOpen, setWarningOpen] = useState(false);
   const warned = useRef(false);
   const [transcriptSpeaker, setTranscriptSpeaker] = useState<string | null>(null);
-  const revealTranscript = () => flushSync(() => setTranscriptSpeaker(null));
+  const revealTranscript = () => {
+    flushSync(() => {
+      setAnalysisView("risk");
+      setTranscriptSpeaker(null);
+    });
+    document.getElementById("analysis-tab-risk")?.focus({ preventScroll: true });
+  };
   const [chatOpen, setChatOpen] = useState(false);
   const chatButtonRef = useRef<HTMLButtonElement>(null);
   const chat = useChatConversations(call.messages, joined?.self.id, peers, chatOpen);
@@ -290,7 +296,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
 
       <aside id="call-safety-panel" className="safety-sidebar" aria-label="ScamShield 통화 보호" hidden={!panelOpen}>
         {watch.degraded && <p className="watch-warn" role="status">분석 연결이 끊겼어요 · 재연결 중</p>}
-        <div className="safety-content">
+        <div className="safety-content" data-view={analysisView}>
           <div className="analysis-scroll" role="region" aria-label="통화 분석" tabIndex={0}>
             <AnalysisPanel analysis={analysis} names={names.current} onSelectSpeaker={(trackId) => highlightSpeaker(trackId, false)} onRevealTranscript={revealTranscript}
               view={analysisView} onViewChange={setAnalysisView}
@@ -300,6 +306,7 @@ export function CallScreen({ call }: { call: ReturnType<typeof useCall> }) {
             />
           </div>
           <TranscriptPanel
+            hidden={analysisView === "findings"}
             selfId={joined?.self.id}
             selectedSpeaker={transcriptSpeaker}
             onSelectFilter={setTranscriptSpeaker}

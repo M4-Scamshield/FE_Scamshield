@@ -147,6 +147,7 @@ main[data-view="call"] .log { max-height: 100px; }
 .safety-content { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 28px; padding: 24px; }
 /* Keep page navigation visible while long findings scroll within their own view. */
 .analysis-scroll { flex: 0 0 calc(58% - 14px); min-height: 0; display: flex; overflow: hidden; }
+.safety-content[data-view="findings"] .analysis-scroll { flex: 1; }
 .analysis-scroll:focus-visible, .guard-page:focus-visible, .transcript-lines:focus-visible { outline: 2px solid #227a67; outline-offset: -2px; }
 .guard { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .analysis-navigation { flex: none; min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); }
@@ -253,7 +254,8 @@ main[data-view="call"] .log { max-height: 100px; }
 .risk-chart-line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .risk-chart-guide { stroke: currentColor; stroke-width: 1; stroke-opacity: .25; stroke-dasharray: 3 3; }
 .risk-chart-point { fill: var(--bg); stroke: currentColor; stroke-width: 2; }
-.risk-chart-empty { position: absolute; inset: 15px 0 24px 28px; display: grid; place-items: center; margin: 0; background: #f6f8f7cc; color: #7b8b82; font-size: .75rem; }
+.risk-chart-empty { position: absolute; inset: 15px 0 24px 28px; display: grid; place-items: center; margin: 0; color: #7b8b82; font-size: .75rem; }
+.risk-chart-empty > span { padding: 0 6px; background: var(--bg); }
 .risk-timeline figcaption { display: flex; justify-content: space-between; gap: 8px; margin-top: 3px; color: #829189; font-size: .6875rem; font-variant-numeric: tabular-nums; }
 .guard-note { margin: 0; font-size: var(--text-small); color: #84908b; line-height: 1.8; }
 .alert { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 0 12px 12px; border-left: 3px solid #c18a39; background: #f5eddd; color: #955e0d; font-size: var(--text-body); flex-wrap: wrap; }
@@ -316,6 +318,7 @@ main[data-view="call"] .log { max-height: 100px; }
 
 /* 대화의 화자 색은 참가자 타일과 일치시킨다. 위험 근거만 주황으로 강조한다. */
 .transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0; }
+.transcript[hidden] { display: none; }
 .transcript-head { position: relative; flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-bottom: 1px solid #e0e6e3; }
 .transcript-head .panel-section-title { flex: none; margin: 0; padding: 0; border: 0; }
 .transcript-head > span { color: #8b968f; font-size: .75rem; white-space: nowrap; }

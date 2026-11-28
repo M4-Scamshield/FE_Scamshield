@@ -68,7 +68,7 @@ export function RiskTimeline({ samples }: { samples: RiskSample[] }) {
           <circle className="risk-chart-point" cx={x(point)} cy={y(point)} r="3.5" data-testid="risk-chart-point" data-score={point.score} />
         </g>}
       </svg>
-      {!samples.length && <p className="risk-chart-empty">분석 결과가 쌓이면 표시돼요</p>}
+      {!samples.length && <p className="risk-chart-empty"><span>분석 결과가 쌓이면 표시돼요</span></p>}
     </div>
     <figcaption id={captionId}><span>분석 시간</span>{point && <span>{formatAnalysisTime(point.elapsedMs)} · {point.score}점</span>}</figcaption>
   </figure>;
